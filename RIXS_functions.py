@@ -1,3 +1,20 @@
+import numpy as np
+import pandas as pd
+
+import os, glob
+
+from collections import OrderedDict
+
+import matplotlib
+import matplotlib.pyplot as plt
+
+Experiment = OrderedDict({
+'spectra' : pd.DataFrame([]),
+'total_sum' : pd.Series([]),
+'shifts' : pd.Series([]),
+'meta' : ''
+})
+
 def load_spectra(search_path, selected_file_names):
     """Load all spectra
     One pandas series will be created per spectrum and stored as
@@ -11,7 +28,7 @@ def load_spectra(search_path, selected_file_names):
     
     folder = os.path.dirname(search_path)
     
-    spectra = []  #OrderedDict() # was {}
+    spectra = []
     for name in selected_file_names:
         data = np.loadtxt(os.path.join(folder, name))
         spectrum = pd.Series(data[:,2], index=np.arange(len(data[:,2])), name=name)
@@ -23,16 +40,17 @@ def load_spectra(search_path, selected_file_names):
         Experiment['spectra'] = pd.DataFrame([])
         print("No spectra loaded")
     
-def plot_spectra(align_min, align_max):
+def plot_spectra(ax1, align_min, align_max):
     """Plot spectra on ax1
     
     Arguments:
+    ax1 -- axis to plot on
     align_min -- vertical line defining minimum alignment value
     align_max -- vertical line defining maximum alignment value
     """
     global Experiment
-    plt.sca(ax1)
     
+    plt.sca(ax1)
     while ax1.lines != []:
         ax1.lines[0].remove()
     
@@ -49,7 +67,7 @@ def plot_spectra(align_min, align_max):
     plt.axvline(x=align_min, color='b')
     plt.axvline(x=align_max, color='b')
 
-def plot_shifts():
+def plot_shifts(ax2):
     """Plot the shift values onto ax2"""
     plt.sca(ax2)
     try:
@@ -66,8 +84,6 @@ def correlate(ref, align_min, align_max):
     
     Arguments:
     align_min, align_max -- define range of data used in correlation
-    """
-    global Experiment
     
     zero_shift = np.argmax(np.correlate(ref, ref, mode='Same'))
     xref = np.arange(len(ref))    
@@ -80,9 +96,7 @@ def correlate(ref, align_min, align_max):
         cross_corr = np.correlate(ref, spec, mode='Same')
         shift = np.argmax(cross_corr) - zero_shift
         shifts.append(shift)
-        #print("{} shifted by {} pixels".format(spectrum.name, shift))
     
-    Experiment['shifts'] = pd.Series(shifts)
     
 def align_spectra(ref_name, align_min, align_max):
     """Align the spectra
@@ -100,7 +114,6 @@ def align_spectra(ref_name, align_min, align_max):
         correlate(ref, align_min, align_max)
         
         # apply shift
-        aligned_spectra = []  #OrderedDict()
         for shift, (name, spectrum) in zip(Experiment['shifts'], Experiment['spectra'].items()):
             #print("name {} shift {}".format(name, shift))
             shifted_intensities = np.interp(spectrum.index - shift, spectrum.index, spectrum.values)
@@ -134,7 +147,6 @@ def sum_spectra():
     
     Experiment['meta'] = meta
     
-def plot_sum():
     """Plot the summed spectra on ax3
     """
     plt.sca(ax3)
@@ -190,22 +202,17 @@ def run_test():
     # Align spectra
     align_min = 10
     align_max = 70
-    plot_spectra(align_min, align_max)
     align_spectra(chosen_file_names[0], align_min, align_max)
-    plot_spectra(align_min, align_max)
 
     # Plot the shifts applied
-    plot_shifts()
 
     # Sum spectra and display sum
     sum_spectra()
-    plot_sum()
 
     # Calibrate to energy
     zero_energy = 49
     energy_per_pixel = 2
     calibrate_spectra(zero_energy, energy_per_pixel)
-    plot_sum()
     
     # Save result
     save_spectrum('out.dat')
