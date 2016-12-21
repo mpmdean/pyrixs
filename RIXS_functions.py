@@ -57,7 +57,7 @@ def plot_spectra(ax1, align_min, align_max):
     num_spectra = Experiment['spectra'].shape[1]
     plot_color = iter(matplotlib.cm.spectral(np.linspace(0,1,num_spectra)))
     for name, spectrum in Experiment['spectra'].iteritems():
-        spectrum.plot(color=next(plot_color)) #, scalex=False, scaley=False
+        spectrum.plot(color=next(plot_color))
     plt.xlabel('Pixel / Energy')
     plt.ylabel('Photons')
     
@@ -79,55 +79,89 @@ def plot_shifts(ax2):
     plt.xticks(Experiment['shifts'].index, [name for name in Experiment['spectra'].columns], rotation=30)
 
     
-def correlate(ref, align_min, align_max):
+def correlate(ref, spectra, align_min, align_max, background=0.):
     """Determine the shift in pandas index value required to line up spectra with ref
     
     Arguments:
-    align_min, align_max -- define range of data used in correlation
+    spectra -- pandas dataframe containing spectra
+    align_min, align_max -- define range of data used in cross-correlation
+    background -- subtract off this value before cross-correlation (default 0)
     
-    zero_shift = np.argmax(np.correlate(ref, ref, mode='Same'))
+    Returns:
+    shifts -- list of shifts
+    """    
+    zero_shift = np.argmax(np.correlate(ref-background, ref-background, mode='Same'))
     xref = np.arange(len(ref))    
     shifts = []
-    for name, spectrum in Experiment['spectra'].iteritems():
+    for name, spectrum in spectra.iteritems():
         
         choose_range = np.logical_and(spectrum.index>align_min, spectrum.index<align_max)
         spec = spectrum[choose_range].values
         
-        cross_corr = np.correlate(ref, spec, mode='Same')
+        cross_corr = np.correlate(ref-background, spec-background, mode='Same')
         shift = np.argmax(cross_corr) - zero_shift
         shifts.append(shift)
     
-    
-def align_spectra(ref_name, align_min, align_max):
-    """Align the spectra
-    Global Experiment['spectra'] will be modified in order to account for energy drifts
+    return shifts
+
+def get_shifts(ref_name, align_min, align_max, background=0):
+    """Get shifts using cross correlation.
     
     Arguments
     ref_name -- name of spectrum for zero energy shift
+    align_min, align_max -- define range of data used in correlation
+    background -- subtract off this value before cross-correlation (default 0)
     """
     global Experiment
     
-    if len(Experiment['spectra']) != 0:
-        ref_spectrum = Experiment['spectra'][ref_name]
+    ref_spectrum = Experiment['spectra'][ref_name]
+    choose_range = np.logical_and(ref_spectrum.index>align_min, ref_spectrum.index<align_max)
+    ref = ref_spectrum[choose_range].values
+
+    return correlate(ref, Experiment['spectra'], align_min, align_max, background=background)
+
+def get_shifts_w_mean(ref_name, align_min, align_max, background=0.):
+    """Get shifts using cross correlation.
+    The mean of the spectra after an initial alignment i used as a reference
+    
+    Arguments
+    ref_name -- name of spectrum for zero energy shift
+    align_min, align_max -- define range of data used in correlation
+    background -- subtract off this value before cross-correlation (default 0)
+    """
+    global Experiment
+    
+    # first alignment
+    shifts = get_shifts(ref_name, align_min, align_max, background=background)
+
+    # do a first pass alignment
+    first_pass_spectra = []
+    spectra = Experiment['spectra'].copy()
+    for shift, (name, spectrum) in zip(shifts, spectra.items()):
+        shifted_intensities = np.interp(spectrum.index - shift, spectrum.index, spectrum.values)
+        spectrum[:] = shifted_intensities
+        first_pass_spectra.append(spectrum)
+
+        ref_spectrum = pd.concat(first_pass_spectra, axis=1).mean(axis=1)
+
         choose_range = np.logical_and(ref_spectrum.index>align_min, ref_spectrum.index<align_max)
         ref = ref_spectrum[choose_range].values
-        correlate(ref, align_min, align_max)
-        
-        # apply shift
-        for shift, (name, spectrum) in zip(Experiment['shifts'], Experiment['spectra'].items()):
-            #print("name {} shift {}".format(name, shift))
-            shifted_intensities = np.interp(spectrum.index - shift, spectrum.index, spectrum.values)
-            spectrum[:] = shifted_intensities
-            #spectrum = pd.Series(data[:,2], index=np.arange(len(data[:,2])), name=name)
-            aligned_spectra.append(spectrum)
-        
-        Experiment['spectra'] = pd.concat(aligned_spectra, axis=1)
-        #Experiment['spectra'] = pd.DataFrame(aligned_spectra)
-        
-    else:
-        print("Nothing to align")
-        return
+        return correlate(ref, Experiment['spectra'], align_min, align_max, background=background)
 
+def apply_shifts(shifts):
+    """ Apply shifts values to Experiments['spectra'] and update Experiments['shifts']"""
+    global Experiment
+    aligned_spectra = []
+    for shift, (name, spectrum) in zip(shifts, Experiment['spectra'].items()):
+        shifted_intensities = np.interp(spectrum.index - shift, spectrum.index, spectrum.values)
+        spectrum[:] = shifted_intensities
+        aligned_spectra.append(spectrum)
+        
+    Experiment['spectra'] = pd.concat(aligned_spectra, axis=1)
+    Experiment['shifts'] = pd.Series(shifts)
+
+        
+    
 def sum_spectra():
     """Add all the spectra together after calibration
     The result is stored in Experiment['total_sum']
@@ -147,6 +181,7 @@ def sum_spectra():
     
     Experiment['meta'] = meta
     
+def plot_sum(ax3):
     """Plot the summed spectra on ax3
     """
     plt.sca(ax3)
@@ -202,17 +237,30 @@ def run_test():
     # Align spectra
     align_min = 10
     align_max = 70
-    align_spectra(chosen_file_names[0], align_min, align_max)
+    plot_spectra(ax1, align_min, align_max)
+    shifts = get_shifts_w_mean(chosen_file_names[0], align_min, align_max, background=0.5)
+    apply_shifts(shifts)
+    plot_spectra(ax1, align_min, align_max)
 
     # Plot the shifts applied
+    plot_shifts(ax2)
 
     # Sum spectra and display sum
     sum_spectra()
+    plot_sum(ax3)
 
     # Calibrate to energy
     zero_energy = 49
     energy_per_pixel = 2
     calibrate_spectra(zero_energy, energy_per_pixel)
+    plot_sum(ax3)
     
     # Save result
+    save_spectrum('out.dat')
+
+if __name__ == "__main__":
+    print('Run a test of the code')
+    run_test()
+    
+    
     save_spectrum('out.dat')
