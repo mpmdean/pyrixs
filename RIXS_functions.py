@@ -1,12 +1,60 @@
 import numpy as np
 import pandas as pd
 
-import os, glob
+import h5py, os, glob
 
 from collections import OrderedDict
 
 import matplotlib
 import matplotlib.pyplot as plt
+
+#############################
+# FUNCTIONS FOR IMAGES
+#############################
+
+Image = OrderedDict({
+'photon_events' : np.array([]),
+'name' : '',
+'curvature' : pd.Series([]),
+'image_meta' : ''
+})
+
+def get_all_image_names(search_path):
+    """Returns list of image names meeting the folder search term"""
+    paths = glob.glob(search_path)
+    return [path.split('/')[-1] for path in paths]
+
+def load_image(search_path, selected_image_name):
+    """Read image into Image['photon_events']
+    
+    Arguments:
+    search_path -- string that defines folder containing images
+    selected_image_name -- list of image filenames to load
+    """
+    global Image
+    h5file = h5py.File(os.path.join(os.path.dirname(search_path), selected_image_name))
+    Image['photon_events'] = h5file['entry']['analysis']['events'].value
+    Image['name'] = selected_image_name
+
+def plot_image(ax1, alpha=0.5, s=1):
+    """Plot the image composed of an event list
+    
+    Arguments:
+    alpha -- transparency of plotted points (default 0.5)
+    s --  size of points (default 1)
+    """
+    plt.sca(ax1)
+    ax1.set_axis_bgcolor('black')
+    photon_events = Image['photon_events']
+    plt.scatter(photon_events[:,0], photon_events[:,1], c='white',
+            edgecolors='white', alpha=alpha, s=s)
+    plt.title(Image['name'])
+    plt.xlim([-100, 1700])
+
+    
+#############################
+# FUNCTIONS FOR SPECTRA 
+#############################
 
 Experiment = OrderedDict({
 'spectra' : pd.DataFrame([]),
@@ -14,6 +62,7 @@ Experiment = OrderedDict({
 'shifts' : pd.Series([]),
 'meta' : ''
 })
+
 
 def get_all_file_names(search_path):
     """Returns list of filenames meeting the folder search term"""
