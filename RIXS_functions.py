@@ -15,6 +15,11 @@ Experiment = OrderedDict({
 'meta' : ''
 })
 
+def get_all_file_names(search_path):
+    """Returns list of filenames meeting the folder search term"""
+    paths = glob.glob(search_path)
+    return [path.split('/')[-1] for path in paths]
+
 def load_spectra(search_path, selected_file_names):
     """Load all spectra
     One pandas series will be created per spectrum and stored as
@@ -231,8 +236,7 @@ def run_test():
 
     # Load spectra
     search_path = 'test_data/*.txt'
-    chosen_file_names = [path.split('/')[-1] for path in glob.glob(search_path)]
-    load_spectra(search_path, chosen_file_names)
+    load_spectra(search_path, get_all_file_names(search_path))
 
     # Align spectra
     align_min = 10
@@ -262,5 +266,3 @@ if __name__ == "__main__":
     print('Run a test of the code')
     run_test()
     
-    
-    save_spectrum('out.dat')
