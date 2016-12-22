@@ -1,6 +1,15 @@
 # RIXS_analysis
-Python based analysis for RIXS spectra compatible with command line and a GUI based on jupyter widgets
+Python based analysis for RIXS images and spectra compatible with command line and a GUI based on jupyter widgets
 
-Likely only works with modern Python 3
-In [3]: ipywidgets.__version__
-Out[3]: '4.1.0'
+Likely only works with modern Python 3 due to dependency of ipywidgets
+
+Uses packages:
+lmfit
+ipywidgets
+traitlets
+
+IPython
+numpy
+scipy
+matplotlib
+

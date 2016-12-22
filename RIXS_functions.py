@@ -1,12 +1,22 @@
 import numpy as np
 import pandas as pd
 
-import h5py, os, glob
+import lmfit, h5py, os, glob
 
 from collections import OrderedDict
 
 import matplotlib
 import matplotlib.pyplot as plt
+
+#############################
+# GENERAL FUNCTIONS
+#############################
+
+def get_all_file_names(search_path):
+    """Returns list of image names meeting the folder search term"""
+    paths = glob.glob(search_path)
+    return [path.split('/')[-1] for path in paths]
+
 
 #############################
 # FUNCTIONS FOR IMAGES
@@ -15,14 +25,10 @@ import matplotlib.pyplot as plt
 Image = OrderedDict({
 'photon_events' : np.array([]),
 'name' : '',
-'curvature' : pd.Series([]),
+'curvature' : np.array([0, 0, 500]),
 'image_meta' : ''
 })
 
-def get_all_image_names(search_path):
-    """Returns list of image names meeting the folder search term"""
-    paths = glob.glob(search_path)
-    return [path.split('/')[-1] for path in paths]
 
 def load_image(search_path, selected_image_name):
     """Read image into Image['photon_events']
@@ -51,6 +57,39 @@ def plot_image(ax1, alpha=0.5, s=1):
     plt.title(Image['name'])
     plt.xlim([-100, 1700])
 
+def curvature_to_string(curvature):
+    """Array to string conversion:
+    e.g. ' np.array([5.3, 2.1, 1.3]) to 5.3 x^2 + 2.1 x^1 + 1.3 x^0'"""
+    N = len(curvature)
+    return ' + '.join(['{} x^{}'.format(coef, N-i-1) for i, coef in enumerate(curvature) ])
+
+def string_to_curvature(curvature_string):
+    """String to array conversion:
+    e.g. '5.3 x^2 + 2.1 x^1 + 1.3 x^0' to np.array([5.3, 2.1, 1.3])"""
+    return np.array([float(term.split('x')[0]) for term in curvature_string.split('+')])
+
+
+def plot_curvature(ax1):
+    """ Plot a red line defining curvature on ax1"""
+    x = np.arange(np.nanmax(Image['photon_events'][:,0]))
+    y = np.polyval(Image['curvature'], x)
+    curvature_line = plt.plot(x, y, 'r-', hold=True)
+
+
+def test_images():
+    """Calls images functions from the command line
+    in order to perform a dummy analysis
+    
+    Plot axes contain:
+    ax1 -- Image and curvature
+    """
+
+    load_image(search_path, selected_image_name)
+
+    plt.figure()
+    ax1 = plt.subplot(111)
+    plot_image(ax1)
+    plot_curvature(ax1)
     
 #############################
 # FUNCTIONS FOR SPECTRA 
@@ -63,11 +102,6 @@ Experiment = OrderedDict({
 'meta' : ''
 })
 
-
-def get_all_file_names(search_path):
-    """Returns list of filenames meeting the folder search term"""
-    paths = glob.glob(search_path)
-    return [path.split('/')[-1] for path in paths]
 
 def load_spectra(search_path, selected_file_names):
     """Load all spectra
@@ -265,7 +299,7 @@ def save_spectrum(savefilepath):
     f.write(Experiment['total_sum'].to_string())
     f.close()
 
-def run_test():
+def run_RIXS_test():
     """Calls all functions from the command line
     in order to perform a dummy analysis on test_data/*.txt
     
@@ -313,5 +347,5 @@ def run_test():
 
 if __name__ == "__main__":
     print('Run a test of the code')
-    run_test()
+    run_RIXS_test()
     
