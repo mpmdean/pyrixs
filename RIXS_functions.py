@@ -22,12 +22,16 @@ def get_all_file_names(search_path):
 # FUNCTIONS FOR IMAGES
 #############################
 
+global Image
+
 Image = OrderedDict({
 'photon_events' : np.array([]),
 'name' : '',
 'curvature' : np.array([0, 0, 500]),
-'image_meta' : ''
+'image_meta' : '',
+'spectrum' : np.array([])
 })
+
 
 
 def load_image(search_path, selected_image_name):
@@ -125,8 +129,37 @@ def fit_curvature(binx=16., biny=1.):
     global Image
     x_centers, offsets = get_curvature_offsets(binx=binx, biny=biny)
     curvature_values = fit_poly(x_centers, offsets)
-    Image['curvature'][0:2] = curvature_values[0:2]
+    Image['curvature'] = curvature_values
     return curvature_values
+
+def plot_curvature(ax1):
+    """ Plot a red line defining curvature on ax1"""
+    plt.sca(ax1)
+    x = np.arange(np.nanmax(Image['photon_events'][:,0]))
+    y = np.polyval(Image['curvature'], x)
+    curvature_line = plt.plot(x, y, 'r-', hold=True)
+
+def extract(biny=1.):
+    """Apply curvature to photon events to create pixel versus intensity spectrum
+    Argument
+    biny -- width of rows binned together in histogram"""
+    global Image
+    XY = Image['photon_events']
+    curvature_corrected_y = XY[:,1] - poly(XY[:,0], *Image['curvature'])
+    pix_edges = biny/2. + biny * np.arange(np.floor(np.nanmax(curvature_corrected_y)/biny))
+    I, _ = np.histogram(curvature_corrected_y, bins=pix_edges)
+    pix_centers = (pix_edges[0:-1] + pix_edges[1:]) / 2
+    spectrum = np.vstack((pix_centers, I)).transpose()
+    Image['spectrum'] = spectrum
+    return spectrum
+
+def plot_spectrum(ax2):
+    """ Plot a red line defining curvature on ax2"""
+    plt.sca(ax2)
+    spectrum = Image['spectrum']
+    spectrum_line = plt.plot(spectrum[:,0], spectrum[:,1], 'b.-')
+    plt.xlabel('pixels')
+    plt.ylabel('Photons')
 
 def test_images():
     """Calls images functions from the command line
@@ -141,14 +174,18 @@ def test_images():
     
     load_image(search_path, selected_image_name)
     curvature_values = fit_curvature()
+    Image['curvature'][0:2] = curvature_values[0:2]
     print("Curvature is {} x^2 + {} x + {}".format(*curvature_values))
     
     plt.figure()
     ax1 = plt.subplot(111)
+    plt.figure()
+    ax2 = plt.subplot(111)
     
     plot_image(ax1)
+    extract()
     plot_curvature(ax1)
-
+    plot_spectrum(ax2)
 
 #############################
 # FUNCTIONS FOR SPECTRA 
