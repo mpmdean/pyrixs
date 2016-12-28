@@ -57,24 +57,76 @@ def plot_image(ax1, alpha=0.5, s=1):
     plt.title(Image['name'])
     plt.xlim([-100, 1700])
 
-def curvature_to_string(curvature):
-    """Array to string conversion:
-    e.g. ' np.array([5.3, 2.1, 1.3]) to 5.3 x^2 + 2.1 x^1 + 1.3 x^0'"""
-    N = len(curvature)
-    return ' + '.join(['{} x^{}'.format(coef, N-i-1) for i, coef in enumerate(curvature) ])
-
-def string_to_curvature(curvature_string):
-    """String to array conversion:
-    e.g. '5.3 x^2 + 2.1 x^1 + 1.3 x^0' to np.array([5.3, 2.1, 1.3])"""
-    return np.array([float(term.split('x')[0]) for term in curvature_string.split('+')])
-
-
 def plot_curvature(ax1):
     """ Plot a red line defining curvature on ax1"""
     x = np.arange(np.nanmax(Image['photon_events'][:,0]))
     y = np.polyval(Image['curvature'], x)
     curvature_line = plt.plot(x, y, 'r-', hold=True)
 
+def poly(x, p2, p1, p0):
+    """Third order polynominal for fitting curvature
+    p2*x**2 + p1*x + p0"""
+    return p2*x**2 + p1*x + p0
+
+def fit_poly(x_centers, offsets):
+    """Fit curvature to vaues for curvature offsets
+    
+    Arguments:
+    x_centers, y_centers = Shifts of the isoenergetic line as a function of column, x
+    """
+    poly_model = lmfit.Model(poly)
+    params = poly_model.make_params()
+    params['p0'].value = offsets[0]
+    for i, arg in enumerate(['p2', 'p1']):
+        params[arg].value = Image['curvature'][i]
+        
+    result = poly_model.fit(offsets, x=x_centers, params=params)
+    
+    if result.success:
+        curvature_values = [result.best_values[arg] for arg in ['p2', 'p1', 'p0']]
+        return curvature_values
+
+def get_curvature_offsets(binx=16., biny=1.):
+    """ Determine the offests that define the isoenergetic line 
+    
+    Arguments:
+    binx/biny -- width of columns/rows binned together prior to computing convolution
+    
+    """
+    global Image
+    M = Image['photon_events']
+    x = M[:,0]
+    y = M[:,1]
+    x_edges = binx * np.arange(np.floor(np.nanmax(x)/binx))
+    x_centers = (x_edges[:-1] + x_edges[1:])/2
+    y_edges = biny * np.arange(np.floor(np.nanmax(y)/biny))
+    y_centers = (y_edges[:-1] + y_edges[1:])/2
+    
+    # compute reference from center of image
+    cenpix = np.nanmax(x)/2 + 0.
+    yvals = y[np.logical_and(x>(cenpix-binx/2), x<=(cenpix+binx/2))]
+    ref, _ = np.histogram(yvals, bins=y_edges)
+    
+    offsets = []
+    for x_min, x_max in zip(x_edges[:-1], x_edges[1:]): # possible with 2D hist?
+        yvals = y[np.logical_and(x>x_min, x<=x_max)]
+        I, _ = np.histogram(yvals, bins=y_edges)
+        ycorr = np.correlate(I, ref, mode='same')
+        offsets.append(y_centers[np.argmax(ycorr)])
+    
+    return x_centers, np.array(offsets)
+
+def fit_curvature(binx=16., biny=1.):
+    """Get offsets, fit them with a polynominal and assign values to Image
+    
+    Arguments:
+    binx/biny -- width of columns/rows binned together prior to computing convolution
+    """
+    global Image
+    x_centers, offsets = get_curvature_offsets(binx=binx, biny=biny)
+    curvature_values = fit_poly(x_centers, offsets)
+    Image['curvature'][0:2] = curvature_values[0:2]
+    return curvature_values
 
 def test_images():
     """Calls images functions from the command line
@@ -83,14 +135,21 @@ def test_images():
     Plot axes contain:
     ax1 -- Image and curvature
     """
-
+    global Image
+    search_path = 'test_images/*.h5'
+    selected_image_name = get_all_file_names(search_path)[0]
+    
     load_image(search_path, selected_image_name)
-
+    curvature_values = fit_curvature()
+    print("Curvature is {} x^2 + {} x + {}".format(*curvature_values))
+    
     plt.figure()
     ax1 = plt.subplot(111)
+    
     plot_image(ax1)
     plot_curvature(ax1)
-    
+
+
 #############################
 # FUNCTIONS FOR SPECTRA 
 #############################
@@ -325,7 +384,7 @@ def run_RIXS_test():
     align_min = 10
     align_max = 70
     plot_spectra(ax1, align_min, align_max)
-    shifts = get_shifts_w_mean(chosen_file_names[0], align_min, align_max, background=0.5)
+    shifts = get_shifts_w_mean(get_all_file_names(search_path)[0], align_min, align_max, background=0.5)
     apply_shifts(shifts)
     plot_spectra(ax1, align_min, align_max)
 
