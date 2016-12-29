@@ -72,6 +72,13 @@ def poly(x, p2, p1, p0):
     p2*x**2 + p1*x + p0"""
     return p2*x**2 + p1*x + p0
 
+def gaussian(x, FWHM=3., center=100., amplitude=10., offset=0.):
+        """Gaussian defined by full width at half maximum FWHM
+        with an offset for fitting resolution
+        """
+        two_sig_sq = (FWHM / (2 * np.log(2) ) )**2
+        return amplitude * np.exp( -(x-center)**2/two_sig_sq ) + offset
+
 def fit_poly(x_centers, offsets):
     """Fit curvature to vaues for curvature offsets
     
@@ -89,6 +96,17 @@ def fit_poly(x_centers, offsets):
     if result.success:
         curvature_values = [result.best_values[arg] for arg in ['p2', 'p1', 'p0']]
         return curvature_values
+
+def fit_resolution(x, y):
+    """Gaussian model with offset to x,y to determine resolution"""
+    GaussianModel = lmfit.Model(gaussian)
+    params = GaussianModel.make_params()
+    params['center'].value = x[np.argmax(y)]
+    result = GaussianModel.fit(y, x=x, params=params) 
+    
+    if result.success:
+        resolution_values = [result.best_values[arg] for arg in ['FWHM', 'center', 'amplitude', 'offset']]
+        return resolution_values
 
 def get_curvature_offsets(binx=16., biny=1.):
     """ Determine the offests that define the isoenergetic line 
@@ -145,22 +163,31 @@ def extract(biny=1.):
     biny -- width of rows binned together in histogram"""
     global Image
     XY = Image['photon_events']
-    curvature_corrected_y = XY[:,1] - poly(XY[:,0], *Image['curvature'])
-    pix_edges = biny/2. + biny * np.arange(np.floor(np.nanmax(curvature_corrected_y)/biny))
+    curvature_corrected_y = XY[:,1] - poly(XY[:,0], Image['curvature'][0], Image['curvature'][1], 0.)
+    maxy = np.nanmax(curvature_corrected_y)
+    #print('maxy = {}'.format(maxy))
+    pix_edges = biny/2. + biny * np.arange(np.floor(maxy/biny))
     I, _ = np.histogram(curvature_corrected_y, bins=pix_edges)
     pix_centers = (pix_edges[0:-1] + pix_edges[1:]) / 2
     spectrum = np.vstack((pix_centers, I)).transpose()
     Image['spectrum'] = spectrum
     return spectrum
 
-def plot_spectrum(ax2):
-    """ Plot a red line defining curvature on ax2"""
+def plot_resolution(ax2):
+    """ Plot a red line from the resolution spectrum on ax2"""
     plt.sca(ax2)
     spectrum = Image['spectrum']
-    spectrum_line = plt.plot(spectrum[:,0], spectrum[:,1], 'b.-')
+    spectrum_line = plt.plot(spectrum[:,0], spectrum[:,1], 'b.')
     plt.xlabel('pixels')
     plt.ylabel('Photons')
 
+def plot_resolution_fit(ax2, xmin, xmax, resolution_values):
+    """Plot the gaussian fit to the resolution function"""
+    plt.sca(ax2)
+    x = np.linspace(xmin, xmax, 1000)
+    y = gaussian(x, *resolution_values)
+    resolution_line = plt.plot(x, y, 'r-', hold=True)
+    
 def test_images():
     """Calls images functions from the command line
     in order to perform a dummy analysis
@@ -171,21 +198,26 @@ def test_images():
     global Image
     search_path = 'test_images/*.h5'
     selected_image_name = get_all_file_names(search_path)[0]
-    
+
     load_image(search_path, selected_image_name)
     curvature_values = fit_curvature()
     Image['curvature'][0:2] = curvature_values[0:2]
     print("Curvature is {} x^2 + {} x + {}".format(*curvature_values))
-    
+
     plt.figure()
     ax1 = plt.subplot(111)
     plt.figure()
     ax2 = plt.subplot(111)
-    
+
     plot_image(ax1)
-    extract()
+    spectrum = extract()
     plot_curvature(ax1)
-    plot_spectrum(ax2)
+    plot_resolution(ax2)
+
+    resolution_values = fit_resolution(spectrum[:,0], spectrum[:,1])
+    print("Resolution is {}".format(resolution_values[0]))
+
+    plot_resolution_fit(ax2, 0, 1000, resolution_values)
 
 #############################
 # FUNCTIONS FOR SPECTRA 
