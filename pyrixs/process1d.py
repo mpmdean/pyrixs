@@ -8,6 +8,8 @@ from collections import OrderedDict
 import matplotlib
 import matplotlib.pyplot as plt
 
+from pyrixs import loaddata
+
 #############################
 # function for processing 1D spectra data
 # everything is stored in ordered dictionary Spectra
@@ -40,7 +42,7 @@ def load_spectra(search_path, selected_file_names):
 
     spectra = []
     for name in selected_file_names:
-        data = np.loadtxt(os.path.join(folder, name))
+        data = loaddata.getspectrum(os.path.join(folder, name))
         spectrum = pd.Series(data[:,2], index=np.arange(len(data[:,2])), name=name)
         spectra.append(spectrum)
 

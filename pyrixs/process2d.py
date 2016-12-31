@@ -1,20 +1,18 @@
 import numpy as np
 import pandas as pd
 
-import lmfit, h5py, os, glob
+import lmfit, os, glob
 
 from collections import OrderedDict
 
-import matplotlib
 import matplotlib.pyplot as plt
 
+from pyrixs import loaddata
 
 #############################
 # function for processing 2D image data
 # everything is stored in ordered dictionary Image
 #############################
-
-global Image
 
 Image = OrderedDict({
 'photon_events' : np.array([]),
@@ -23,6 +21,8 @@ Image = OrderedDict({
 'image_meta' : '',
 'spectrum' : np.array([])
 })
+
+global Image
 
 def get_all_image_names(search_path):
     """Returns list of image names meeting the folder search term"""
@@ -37,10 +37,18 @@ def load_image(search_path, selected_image_name):
     selected_image_name -- list of image filenames to load
     """
     global Image
-    h5file = h5py.File(os.path.join(os.path.dirname(search_path), selected_image_name))
-    Image['photon_events'] = h5file['entry']['analysis']['events'].value
+    filename = os.path.join(os.path.dirname(search_path), selected_image_name)
+    Image['photon_events'] = loaddata.getimage(filename)
     Image['name'] = selected_image_name
 
+def make_fake_image():
+    """Assign simulated image into Image['photon_events']"""
+    randomy = 2**11*np.random.rand(200000)
+    choose = (np.exp( -(randomy-1000)**2 / 5 ) +.01) >np.random.rand(len(randomy))
+    yvalues = randomy[choose]
+    xvalues = 2**11 * np.random.rand(len(yvalues))
+    return np.vstack((xvalues, yvalues-xvalues*.02)).transpose()
+    
 def plot_image(ax1, alpha=0.5, s=1):
     """Plot the image composed of an event list
 
@@ -189,17 +197,24 @@ def plot_resolution_fit(ax2, xmin, xmax, resolution_values):
     y = gaussian(x, *resolution_values)
     resolution_line = plt.plot(x, y, 'r-', hold=True)
 
-def run_test(search_path = 'test_images/*.h5'):
+
+if __name__ == "__main__":
     """Calls images functions from the command line
     in order to perform a dummy analysis
 
     Plot axes contain:
     ax1 -- Image and curvature
     """
+    print('Run a test of the code')
+    
     global Image
-    selected_image_name = get_all_image_names(search_path)[0]
-
-    load_image(search_path, selected_image_name)
+    
+    try:
+        selected_image_name = get_all_image_names('../test_images/*.h5')[0]
+        load_image(search_path, selected_image_name)
+    except (KeyError, IndexError) as e:
+        Image['photon_events'] = make_fake_image()
+        Image['name'] = 'fake data'
     curvature_values = fit_curvature()
     Image['curvature'][0:2] = curvature_values[0:2]
     print("Curvature is {} x^2 + {} x + {}".format(*curvature_values))
@@ -218,7 +233,3 @@ def run_test(search_path = 'test_images/*.h5'):
     print("Resolution is {}".format(resolution_values[0]))
 
     plot_resolution_fit(ax2, 0, 1000, resolution_values)
-
-if __name__ == "__main__":
-    print('Run a test of the code')
-    run_test()
