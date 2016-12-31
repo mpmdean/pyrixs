@@ -1,12 +1,11 @@
 import numpy as np
 import pandas as pd
-
-import lmfit, h5py, os, glob
-
-from collections import OrderedDict
-
+import os, glob
 import matplotlib
 import matplotlib.pyplot as plt
+from collections import OrderedDict
+
+import lmfit
 
 from pyrixs import loaddata
 
@@ -46,11 +45,34 @@ def load_spectra(search_path, selected_file_names):
         spectrum = pd.Series(data[:,2], index=np.arange(len(data[:,2])), name=name)
         spectra.append(spectrum)
 
-    if spectra != {}:
+    if spectra != []:
         Spectra['spectra'] = pd.concat(spectra, axis=1)
     else:
         Spectra['spectra'] = pd.DataFrame([])
         print("No spectra loaded")
+
+def make_fake_spectrum(x, elastic_energy=50):
+    """Generate intensity values for simulated spectrum.
+    One elastic line appears at elastic_energy
+    A constant emission line is also added."""
+    def peak(x, FWHM=3., center=50., amplitude=10.):
+        two_sig_sq = (FWHM / (2 * np.log(2) ) )**2
+        return amplitude * np.exp( -(x-center)**2/two_sig_sq )
+
+    y1 = peak(x, FWHM=5., center=elastic_energy, amplitude=3.)
+    y2 = peak(x, FWHM=10., center=100., amplitude=10.)
+    return y1 + y2 + np.random.rand(len(x))
+
+def make_fake_spectra(elastic_energies=np.arange(40,60)):
+    """Return pandas dataframe of simulated spectra"""
+    x = np.linspace(0, 200, 1000)
+    spectra_list = []
+    for i, elastic_energy in enumerate(elastic_energies):
+        y = make_fake_spectrum(x, elastic_energy=elastic_energy)
+        spectrum = pd.Series(y, index=x, name=str(i))
+        spectra_list.append(spectrum)
+
+    return pd.concat(spectra_list, axis=1)
 
 def plot_spectra(ax1, align_min, align_max):
     """Plot spectra on ax1
@@ -123,6 +145,9 @@ def get_shifts(ref_name, align_min, align_max, background=0):
     ref_name -- name of spectrum for zero energy shift
     align_min, align_max -- define range of data used in correlation
     background -- subtract off this value before cross-correlation (default 0)
+
+    Returns:
+    shifts -- list of shifts
     """
     global Spectra
 
@@ -140,6 +165,9 @@ def get_shifts_w_mean(ref_name, align_min, align_max, background=0.):
     ref_name -- name of spectrum for zero energy shift
     align_min, align_max -- define range of data used in correlation
     background -- subtract off this value before cross-correlation (default 0)
+
+    Returns:
+    shifts -- list of shifts
     """
     global Spectra
 
@@ -171,8 +199,6 @@ def apply_shifts(shifts):
 
     Spectra['spectra'] = pd.concat(aligned_spectra, axis=1)
     Spectra['shifts'] = pd.Series(shifts)
-
-
 
 def sum_spectra():
     """Add all the spectra together after calibration
@@ -243,12 +269,15 @@ def run_test(search_path='test_data/*.txt'):
 
     # Load spectra
     load_spectra(search_path, get_all_spectra_names(search_path))
+    if len(Spectra['spectra']) == 0:
+        Spectra['spectra'] = make_fake_spectra()
 
     # Align spectra
     align_min = 10
     align_max = 70
     plot_spectra(ax1, align_min, align_max)
-    shifts = get_shifts_w_mean(get_all_spectra_names(search_path)[0], align_min, align_max, background=0.5)
+    first_spectrum_name = Spectra['spectra'].keys()[0]
+    shifts = get_shifts_w_mean(first_spectrum_name, align_min, align_max, background=0.5)
     apply_shifts(shifts)
     plot_spectra(ax1, align_min, align_max)
 
