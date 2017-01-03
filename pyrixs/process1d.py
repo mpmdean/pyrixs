@@ -1,3 +1,15 @@
+""" Functions for processing 1D spectra data
+i.e. photon counts versus energy or pixel
+Everything is stored in an ordered dictionary
+Spectra
+ -- spectra -- Pandas dataframe of all spectra
+ -- total_sum -- Pandas series representing the sum of all spectra
+ -- shifts -- number of pixels that
+ -- meta -- A string can be used to pass around additional data.
+
+ Typical workflow is explained in run_rest()
+"""
+
 import numpy as np
 import pandas as pd
 import os, glob
@@ -8,11 +20,6 @@ from collections import OrderedDict
 import lmfit
 
 from pyrixs import loaddata
-
-#############################
-# function for processing 1D spectra data
-# everything is stored in ordered dictionary Spectra
-#############################
 
 Spectra = OrderedDict({
 'spectra' : pd.DataFrame([]),
@@ -64,7 +71,12 @@ def make_fake_spectrum(x, elastic_energy=50):
     return y1 + y2 + np.random.rand(len(x))
 
 def make_fake_spectra(elastic_energies=np.arange(40,60)):
-    """Return pandas dataframe of simulated spectra"""
+    """Return pandas dataframe of simulated spectra"
+
+    Arguments:
+    elastic_energies --  array defining position of peak. It is typical for this
+    to drift in the course of an experiment.
+    """
     x = np.linspace(0, 200, 1000)
     spectra_list = []
     for i, elastic_energy in enumerate(elastic_energies):

@@ -1,3 +1,15 @@
+""" Functions for processing 2D Image data
+i.e. a list of x,y indices for photon events
+Everything is stored in an ordered dictionary
+Spectra
+ -- spectra -- Pandas dataframe of all spectra
+ -- total_sum -- Pandas series representing the sum of all spectra
+ -- shifts -- number of pixels that
+ -- meta -- A string can be used to pass around additional data.
+
+ Typical workflow is explained in run_rest()
+"""
+
 import numpy as np
 import pandas as pd
 import os, glob
@@ -7,11 +19,6 @@ from collections import OrderedDict
 import lmfit, os, glob
 
 from pyrixs import loaddata
-
-#############################
-# function for processing 2D image data
-# everything is stored in ordered dictionary Image
-#############################
 
 Image = OrderedDict({
 'photon_events' : np.array([]),
@@ -121,6 +128,14 @@ def fit_resolution(xmin=-np.inf, xmax=np.inf):
         resolution_values = [result.best_values[arg] for arg in ['FWHM', 'center', 'amplitude', 'offset']]
         return resolution_values
 
+def bin_edges_centers(maxvalue, binsize):
+    """Make bin edges and centers for use in histogram
+    This ararys have a range from 0 to length with steps of binsize
+    Returns: tuple of bin edges and bin centers
+    """
+    edges = binsize * np.arange(maxvalue//binsize)
+    centers = (edges[:-1] + edges[1:])/2
+    return edges, centers
 
 def get_curvature_offsets(binx=64, biny=1):
     """ Determine the offests that define the isoenergetic line.
@@ -130,27 +145,28 @@ def get_curvature_offsets(binx=64, biny=1):
     Arguments:
     binx/biny -- width of columns/rows binned together prior to computing
                  convolution. binx should be increased for noisy data.
+
+    Returns:
+    x_centers --np.array of columns positions where offsets were determined
+                i.e. binx/2, 3*binx/2, 5*binx/2, ...
+    offests -- np.array of row offsets defining curvature. This is referenced
+                to the center of the image.
     """
-    global Image
     x = Image['photon_events'][:,0]
     y = Image['photon_events'][:,1]
-    x_edges = binx * np.arange(np.floor(np.nanmax(x)/binx))
-    x_centers = (x_edges[:-1] + x_edges[1:])/2
-    y_edges = biny * np.arange(np.floor(np.nanmax(y)/biny))
-    y_centers = (y_edges[:-1] + y_edges[1:])/2
+    x_edges, x_centers = bin_edges_centers(np.nanmax(x), binx)
+    y_edges, y_centers = bin_edges_centers(np.nanmax(y), biny)
 
-    cenpix = np.nanmax(x)/2
-    yvals = y[np.logical_and(x>(cenpix-binx/2), x<=(cenpix+binx/2))]
-    ref, _ = np.histogram(yvals, bins=y_edges)
+    H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges))
 
-    offsets = []
-    for x_min, x_max in zip(x_edges[:-1], x_edges[1:]): # possible with 2D hist?
-        yvals = y[np.logical_and(x>x_min, x<=x_max)]
-        I, _ = np.histogram(yvals, bins=y_edges)
-        ycorr = np.correlate(I, ref, mode='same')
-        offsets.append(y_centers[np.argmax(ycorr)])
+    ref_column = H[H.shape[0]//2, :]
 
-    return x_centers, np.array(offsets)
+    offsets = np.array([])
+    for column in H:
+        cross_correlation = np.correlate(column, ref_column, mode='same')
+        offsets = np.append(offsets, y_centers[np.argmax(cross_correlation)])
+
+    return x_centers, offsets - offsets[offsets.shape[0]//2]
 
 def fit_curvature(binx=64, biny=1):
     """Get offsets, fit them with a polynominal and assign values to Image
