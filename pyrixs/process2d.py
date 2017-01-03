@@ -74,7 +74,7 @@ def plot_image(ax1, alpha=0.5, s=1):
 def plot_curvature(ax1):
     """ Plot a red line defining curvature on ax1"""
     x = np.arange(np.nanmax(Image['photon_events'][:,0]))
-    y = np.polyval(Image['curvature'], x)
+    y = poly(Image['curvature'])
     curvature_line = plt.plot(x, y, 'r-', hold=True)
 
 def poly(x, p2, p1, p0):
@@ -95,6 +95,9 @@ def fit_poly(x_centers, offsets):
 
     Arguments:
     x_centers, y_centers = Shifts of the isoenergetic line as a function of column, x
+
+    Return:
+    numpy array of [x^2, x, offset] defining curvature.
     """
     poly_model = lmfit.Model(poly)
     params = poly_model.make_params()
@@ -105,7 +108,7 @@ def fit_poly(x_centers, offsets):
     result = poly_model.fit(offsets, x=x_centers, params=params)
 
     if result.success:
-        curvature_values = [result.best_values[arg] for arg in ['p2', 'p1', 'p0']]
+        curvature_values = np.array([result.best_values[arg] for arg in ['p2', 'p1', 'p0']])
         return curvature_values
 
 def fit_resolution(xmin=-np.inf, xmax=np.inf):
@@ -128,12 +131,14 @@ def fit_resolution(xmin=-np.inf, xmax=np.inf):
         resolution_values = [result.best_values[arg] for arg in ['FWHM', 'center', 'amplitude', 'offset']]
         return resolution_values
 
-def bin_edges_centers(maxvalue, binsize):
+def bin_edges_centers(minvalue, maxvalue, binsize):
     """Make bin edges and centers for use in histogram
-    This ararys have a range from 0 to length with steps of binsize
+    This arrays have a range from minvalue to maxvalue with steps of binsize.
+    The rounding of the bins edges is such that all bins are fully populated.
+
     Returns: tuple of bin edges and bin centers
     """
-    edges = binsize * np.arange(maxvalue//binsize)
+    edges = binsize * np.arange(minvalue//binsize + 1, maxvalue//binsize)
     centers = (edges[:-1] + edges[1:])/2
     return edges, centers
 
@@ -154,8 +159,8 @@ def get_curvature_offsets(binx=64, biny=1):
     """
     x = Image['photon_events'][:,0]
     y = Image['photon_events'][:,1]
-    x_edges, x_centers = bin_edges_centers(np.nanmax(x), binx)
-    y_edges, y_centers = bin_edges_centers(np.nanmax(y), biny)
+    x_edges, x_centers = bin_edges_centers(np.nanmin(x), np.nanmax(x), binx)
+    y_edges, y_centers = bin_edges_centers(np.nanmin(x), np.nanmax(y), biny)
 
     H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges))
 
@@ -168,8 +173,8 @@ def get_curvature_offsets(binx=64, biny=1):
 
     return x_centers, offsets - offsets[offsets.shape[0]//2]
 
-def fit_curvature(binx=64, biny=1):
-    """Get offsets, fit them with a polynominal and assign values to Image
+def fit_curvature(binx=32, biny=1):
+    """Get offsets, fit them and return curvature_values
 
     Arguments:
     binx/biny -- width of columns/rows binned together prior to computing convolution
@@ -177,14 +182,14 @@ def fit_curvature(binx=64, biny=1):
     global Image
     x_centers, offsets = get_curvature_offsets(binx=binx, biny=biny)
     curvature_values = fit_poly(x_centers, offsets)
-    Image['curvature'] = curvature_values
+    curvature_values[-1] = Image['curvature'][-1]
     return curvature_values
 
 def plot_curvature(ax1):
     """ Plot a red line defining curvature on ax1"""
     plt.sca(ax1)
     x = np.arange(np.nanmax(Image['photon_events'][:,0]))
-    y = np.polyval(Image['curvature'], x)
+    y = poly(x, *Image['curvature'])
     curvature_line = plt.plot(x, y, 'r-', hold=True)
 
 def extract(biny=1.):
@@ -193,15 +198,12 @@ def extract(biny=1.):
     Arguments:
     biny -- width of rows binned together in histogram"""
     global Image
-    XY = Image['photon_events']
-    curvature_corrected_y = XY[:,1] - poly(XY[:,0],
-                                           Image['curvature'][0],
-                                           Image['curvature'][1],
-                                           0.)
-    maxy = np.nanmax(curvature_corrected_y)
-    pix_edges = biny/2. + biny * np.arange(np.floor(maxy/biny))
-    I, _ = np.histogram(curvature_corrected_y, bins=pix_edges)
-    pix_centers = (pix_edges[0:-1] + pix_edges[1:]) / 2
+    x = Image['photon_events'][:,0]
+    y = Image['photon_events'][:,1]
+    corrected_y = y - poly(x, Image['curvature'][0], Image['curvature'][1], 0.)
+    pix_edges, pix_centers = bin_edges_centers(np.nanmin(corrected_y),
+                                            np.nanmax(corrected_y), biny)
+    I, _ = np.histogram(corrected_y, bins=pix_edges)
     spectrum = np.vstack((pix_centers, I)).transpose()
     Image['spectrum'] = spectrum
     return spectrum
@@ -242,11 +244,12 @@ def run_test(search_path='../test_images/*.h5'):
         selected_image_name = get_all_image_names(search_path)[0]
         load_image(search_path, selected_image_name)
     except (KeyError, IndexError) as e:
+        print("No data found: Simulate an image")
         Image['photon_events'] = make_fake_image()
         Image['name'] = 'fake data'
     curvature_values = fit_curvature()
-    Image['curvature'][0:2] = curvature_values[0:2]
-    print("Curvature is {} x^2 + {} x + {}".format(*curvature_values))
+    Image['curvature'] = curvature_values
+    print("Curvature is {} x^2 + {} x + {}".format(*Image['curvature']))
 
     plt.figure()
     ax1 = plt.subplot(111)
@@ -261,6 +264,7 @@ def run_test(search_path='../test_images/*.h5'):
     plot_resolution_fit(ax2, resolution_values)
 
     print("Resolution is {}".format(resolution_values[0]))
+    return ax1, ax2
 
 if __name__ == "__main__":
     """Run test of code"""
