@@ -16,8 +16,8 @@ matplotlib
 --------
 Installation guide
 
-Optional: creation a python environment
-1. Download anaonda 
+1. (Optional: creation a python environment
+Download anaonda 
 https://www.continuum.io/downloads
 conda create --name analysis
 source activate analysis
