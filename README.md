@@ -13,3 +13,25 @@ numpy
 scipy
 matplotlib
 
+--------
+Installation guide
+
+Optional: creation a python environment
+1. Download anaonda 
+https://www.continuum.io/downloads
+conda create --name analysis
+source activate analysis
+pip install lmfit
+
+2. Install package
+https://github.com/mpmdean/pyrixs
+Clone or download
+Extract
+cd pyrixs-master
+python setup.py install
+
+3. Open notebook
+jpuyter notebook
+notebooks > Images_GUI
+or
+notebooks > Spectra_GUI
