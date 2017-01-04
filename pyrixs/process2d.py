@@ -20,6 +20,7 @@ import lmfit, os, glob
 
 from pyrixs import loaddata
 
+global Image
 Image = OrderedDict({
 'photon_events' : np.array([]),
 'name' : '',
@@ -27,8 +28,6 @@ Image = OrderedDict({
 'image_meta' : '',
 'spectrum' : np.array([])
 })
-
-global Image
 
 def get_all_image_names(search_path):
     """Returns list of image names meeting the folder search term."""
@@ -255,6 +254,7 @@ def run_test(search_path='../test_images/*.h5'):
     ax1 = plt.subplot(111)
     plt.figure()
     ax2 = plt.subplot(111)
+    ax2.title('Spectrum {}'.format(Image['name']))
 
     plot_image(ax1)
     spectrum = extract()

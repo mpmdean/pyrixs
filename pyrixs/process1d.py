@@ -67,17 +67,17 @@ def make_fake_spectrum(x, elastic_energy=50):
         return amplitude * np.exp( -(x-center)**2/two_sig_sq )
 
     y1 = peak(x, FWHM=5., center=elastic_energy, amplitude=3.)
-    y2 = peak(x, FWHM=10., center=100., amplitude=10.)
+    y2 = peak(x, FWHM=10., center=150., amplitude=10.)
     return y1 + y2 + np.random.rand(len(x))
 
-def make_fake_spectra(elastic_energies=np.arange(40,60)):
+def make_fake_spectra(elastic_energies=np.arange(40,50)):
     """Return pandas dataframe of simulated spectra"
 
     Arguments:
     elastic_energies --  array defining position of peak. It is typical for this
     to drift in the course of an experiment.
     """
-    x = np.linspace(0, 200, 1000)
+    x = np.arange(200)
     spectra_list = []
     for i, elastic_energy in enumerate(elastic_energies):
         y = make_fake_spectrum(x, elastic_energy=elastic_energy)
@@ -86,7 +86,7 @@ def make_fake_spectra(elastic_energies=np.arange(40,60)):
 
     return pd.concat(spectra_list, axis=1)
 
-def plot_spectra(ax1, align_min, align_max):
+def plot_spectra(ax1, align_min=None, align_max=None):
     """Plot spectra on ax1
 
     Arguments:
@@ -94,8 +94,6 @@ def plot_spectra(ax1, align_min, align_max):
     align_min -- vertical line defining minimum alignment value
     align_max -- vertical line defining maximum alignment value
     """
-    global Spectra
-
     plt.sca(ax1)
     while ax1.lines != []:
         ax1.lines[0].remove()
@@ -110,6 +108,10 @@ def plot_spectra(ax1, align_min, align_max):
     plt.legend()
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), prop={'size':8})
 
+    if align_min == None:
+        align_min = Spectra['spectra'].index.min()
+    if align_max == None:
+        align_max = Spectra['spectra'].index.max()
     plt.axvline(x=align_min, color='b')
     plt.axvline(x=align_max, color='b')
 
@@ -161,8 +163,6 @@ def get_shifts(ref_name, align_min, align_max, background=0):
     Returns:
     shifts -- list of shifts
     """
-    global Spectra
-
     ref_spectrum = Spectra['spectra'][ref_name]
     choose_range = np.logical_and(ref_spectrum.index>align_min, ref_spectrum.index<align_max)
     ref = ref_spectrum[choose_range].values
@@ -181,8 +181,6 @@ def get_shifts_w_mean(ref_name, align_min, align_max, background=0.):
     Returns:
     shifts -- list of shifts
     """
-    global Spectra
-
     # first alignment
     shifts = get_shifts(ref_name, align_min, align_max, background=background)
 
@@ -265,10 +263,11 @@ def run_test(search_path='test_data/*.txt'):
     """Calls all functions from the command line
     in order to perform a dummy analysis on test_data/*.txt
 
-    Plot axes contain:
+    Plot axes contains:
     ax1 -- All spectra
     ax2 -- Shifts applied during lineup
     ax3 -- Summed spectrum before and after calibrating
+    which are returned to edit the plots
     """
 
     # Create plot windows
@@ -282,6 +281,7 @@ def run_test(search_path='test_data/*.txt'):
     # Load spectra
     load_spectra(search_path, get_all_spectra_names(search_path))
     if len(Spectra['spectra']) == 0:
+        print("Making fake spectra")
         Spectra['spectra'] = make_fake_spectra()
 
     # Align spectra
@@ -296,18 +296,17 @@ def run_test(search_path='test_data/*.txt'):
     # Plot the shifts applied
     plot_shifts(ax2)
 
-    # Sum spectra and display sum
+    # Sum, calibrate to energy and plot
     sum_spectra()
-    plot_sum(ax3)
-
-    # Calibrate to energy
-    zero_energy = 49
+    zero_energy = 40
     energy_per_pixel = 2
     calibrate_spectra(zero_energy, energy_per_pixel)
     plot_sum(ax3)
 
     # Save result
     save_spectrum('out.dat')
+
+    return ax1, ax2, ax3
 
 if __name__ == "__main__":
     print('Run a test of the code')
