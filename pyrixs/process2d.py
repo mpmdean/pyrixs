@@ -1,13 +1,23 @@
-""" Functions for processing 2D Image data
-i.e. a list of x,y indices for photon events
-Everything is stored in an ordered dictionary
-Spectra
- -- spectra -- Pandas dataframe of all spectra
- -- total_sum -- Pandas series representing the sum of all spectra
- -- shifts -- number of pixels that
- -- meta -- A string can be used to pass around additional data.
+""" Functions for processing 2D Image data. This uses
 
- Typical workflow is explained in run_rest()
+Typical command line workflow is executed in run_rest()
+
+Parameters
+----------
+selected_image_name : string
+    string specifying image right now a filename
+photon_events : array
+    two column x, y photon location coordinates
+curvature : array
+    n2d order polynominal defining image curvature
+    np.array([x^2 coef, x coef, offset])
+image_meta : string
+    container for metadata
+spectrum: array
+    binned spectrum two column defining
+    pixel, intensity
+resolution_values : array
+    parameters defining gaussian from fit_resolution
 """
 
 import numpy as np
@@ -22,19 +32,19 @@ from pyrixs import loaddata
 
 CONSTANT_OFFSET = 500
 
-# Delete this entirely.
-# Instead all functions take in the inputs they need and return their results.
-#global Image
-#Image = OrderedDict({
-#'photon_events' : np.array([]),
-#'name' : '',
-#'curvature' : np.array([0, 0, 500]),
-#'image_meta' : '',
-#'spectrum' : np.array([])
-#})
-
 def get_all_image_names(search_path):
-    """Returns list of image names meeting the folder search term."""
+    """Returns list of image names meeting the folder search term.
+
+    Parameters
+    ----------
+    search_path : string
+        defines folder containing images
+
+    Returns
+    ----------
+    image_names : list
+        string showing filenames
+    """
     paths = glob.glob(search_path)
     return [path.split('/')[-1] for path in paths]
 
@@ -46,11 +56,11 @@ def load_image(search_path, selected_image_name):
     search_path : string
         defines folder containing images
     selected_image_name : list
-        image filenames to load
+        image filename to load
 
     Returns
     ----------
-    photo_events : array
+    photon_events : array
         two column x, y photon location coordinates
     """
     filename = os.path.join(os.path.dirname(search_path), selected_image_name)
@@ -58,7 +68,13 @@ def load_image(search_path, selected_image_name):
     return photon_events
 
 def make_fake_image():
-    """Return a fake list of photon events."""
+    """Return a fake list of photon events.
+
+    Returns
+    ----------
+    photon_events : array
+        two column x, y photon location coordinates
+    """
     randomy = 2**11*np.random.rand(1000000)
     choose = (np.exp( -(randomy-1000)**2 / 5 ) +.002) >np.random.rand(len(randomy))
     yvalues = randomy[choose]
@@ -68,27 +84,31 @@ def make_fake_image():
 def plot_image(ax1, photon_events, alpha=0.5, s=1):
     """Plot the image composed of an event list
 
-    Arguments:
-    ax1 -- axes for plotting on
-    alpha -- transparency of plotted points (default 0.5)
-    s --  size of points (default 1)
+    Parameters
+    ----------
+    ax1 : matplotlib axes object
+        axes for plotting on
+    photon_events : array
+        two column x, y photon location coordinates
+    alpha : float
+        transparency of plotted points (default 0.5)
+    s : float
+        size of points (default 1)
+
+    Returns
+    ----------
+    image_artist : matplotlib artist object
+        artist from image scatter plot
     """
     plt.sca(ax1)
     ax1.set_axis_bgcolor('black')
-    plt.scatter(photon_events[:,0], photon_events[:,1], c='white',
+    image_artist = plt.scatter(photon_events[:,0], photon_events[:,1], c='white',
             edgecolors='white', alpha=alpha, s=s)
-    #plt.title(Image['name'])
-    #plt.xlim([-100, 1700])
-
-def plot_curvature(ax1, curvature, photon_events):
-    """ Plot a red line defining curvature on ax1"""
-    x = np.arange(np.nanmax(photon_events[:,0]))
-    y = poly(curvature)
-    curvature_line = plt.plot(x, y, 'r-', hold=True)
+    return image_artist
 
 def poly(x, p2, p1, p0):
-    """Third order polynominal function for fitting curvature that
-    returns p2*x**2 + p1*x + p0 .
+    """Third order polynominal function for fitting curvature.
+    Returns p2*x**2 + p1*x + p0
     """
     return p2*x**2 + p1*x + p0
 
@@ -102,11 +122,15 @@ def gaussian(x, FWHM=3., center=100., amplitude=10., offset=0.):
 def fit_poly(x_centers, offsets):
     """Fit curvature to vaues for curvature offsets.
 
-    Arguments:
-    x_centers, y_centers = Shifts of the isoenergetic line as a function of column, x
+    Parameters
+    ----------
+    x_centers, y_centers : float, float
+        Shifts of the isoenergetic line as a function of column, x
 
-    Return:
-    numpy array of [x^2, x, offset] defining curvature.
+    Returns
+    --------
+    result : lmfit result object
+        object describing polynominal fit
     """
     poly_model = lmfit.Model(poly)
     params = poly_model.make_params()
@@ -122,8 +146,19 @@ def fit_poly(x_centers, offsets):
 def fit_resolution(spectrum, xmin=-np.inf, xmax=np.inf):
     """Fit a Gaussian model to ['spectrum'] in order to determine resolution_values.
 
-    Arguments:
-    xmin, xmax -- define range data to be used
+    Parameters
+    ----------
+    spectrum: array
+        binned spectrum two column defining
+        pixel, intensity
+    xmin/xmax : float
+        minimum/maximum value for fitting range
+
+    Returns
+    ----------
+    resolution : array
+        values parameterizing gaussian function
+        ['FWHM', 'center', 'amplitude', 'offset']
     """
     allx = spectrum[:,0]
     choose = np.logical_and(allx>xmin, allx<=xmax)
@@ -136,15 +171,26 @@ def fit_resolution(spectrum, xmin=-np.inf, xmax=np.inf):
     result = GaussianModel.fit(y, x=x, params=params)
 
     if result.success:
-        resolution_values = [result.best_values[arg] for arg in ['FWHM', 'center', 'amplitude', 'offset']]
-        return resolution_values
+        resolution = [result.best_values[arg] for arg in ['FWHM', 'center', 'amplitude', 'offset']]
+        return resolution
 
 def bin_edges_centers(minvalue, maxvalue, binsize):
     """Make bin edges and centers for use in histogram
-    This arrays have a range from minvalue to maxvalue with steps of binsize.
     The rounding of the bins edges is such that all bins are fully populated.
 
-    Returns: tuple of bin edges and bin centers
+    Parameters
+    -----------
+    minvalue/maxvalue : array/array
+        minimn/ maximum
+    binsize : float (usuallly a whole number)
+        difference between subsequnt points in edges and centers array
+
+    Returns
+    -----------
+    edges : array
+        edge of bins for use in np.histrogram
+    centers : array
+        central value of each bin. One shorter than edges
     """
     edges = binsize * np.arange(minvalue//binsize + 1, maxvalue//binsize)
     centers = (edges[:-1] + edges[1:])/2
@@ -155,15 +201,22 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     This is determined as the maximum of the cross correlation function with
     a reference taken from the center of the image.
 
-    Arguments:
-    binx/biny -- width of columns/rows binned together prior to computing
-                 convolution. binx should be increased for noisy data.
+    Parameters
+    ------------
+    photon_events : array
+        two column x, y photon location coordinates
+    binx/biny : float/float (usually whole numbers)
+        width of columns/rows binned together prior to computing
+        convolution. binx should be increased for noisy data.
 
-    Returns:
-    x_centers --np.array of columns positions where offsets were determined
-                i.e. binx/2, 3*binx/2, 5*binx/2, ...
-    offests -- np.array of row offsets defining curvature. This is referenced
-                to the center of the image.
+    Returns
+    -------------
+    x_centers : array
+        columns positions where offsets were determined
+        i.e. binx/2, 3*binx/2, 5*binx/2, ...
+    offests : array
+        np.array of row offsets defining curvature. This is referenced
+        to the center of the image.
     """
     x = photon_events[:,0]
     y = photon_events[:,1]
@@ -184,8 +237,19 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
 def fit_curvature(photon_events, binx=32, biny=1, CONSTANT_OFFSET=500):
     """Get offsets, fit them and return polynomial that defines the curvature
 
-    Arguments:
-    binx/biny -- width of columns/rows binned together prior to computing convolution
+    Parameters
+    -------------
+    photon_events : array
+        two column x, y photon location coordinates
+    binx/biny : float/float (usually whole numbers)
+        width of columns/rows binned together prior to computing
+        convolution. binx should be increased for noisy data.
+    CONSTANT_OFFSET : float
+        offset is pass into last value of curvature
+
+    Returns
+    -----------
+
     """
     x_centers, offsets = get_curvature_offsets(photon_events, binx=binx, biny=biny)
     result = fit_poly(x_centers, offsets)
@@ -194,8 +258,23 @@ def fit_curvature(photon_events, binx=32, biny=1, CONSTANT_OFFSET=500):
     return curvature
 
 def plot_curvature(ax1, curvature, photon_events):
-    """ Plot a red line defining curvature on ax1"""
-    plt.sca(ax1)
+    """ Plot a red line defining curvature on ax1
+
+    Parameters
+    ----------
+    ax1 : matplotlib axes object
+        axes for plotting on
+    curvature : array
+        n2d order polynominal defining image curvature
+        np.array([x^2 coef, x coef, offset])
+    photon_events : array
+        two column x, y photon location coordinates
+
+    Returns
+    ---------
+    curvature_artist : matplotlib artist object
+        artist from image scatter plot
+    """
     x = np.arange(np.nanmax(photon_events[:,0]))
     y = poly(x, *curvature)
     return plt.plot(x, y, 'r-', hold=True)
@@ -203,8 +282,16 @@ def plot_curvature(ax1, curvature, photon_events):
 def extract(photon_events, curvature, biny=1.):
     """Apply curvature to photon events to create pixel versus intensity spectrum
 
-    Arguments:
-    biny -- width of rows binned together in histogram"""
+    Parameters
+    ----------
+    photon_events : array
+        two column x, y photon location coordinates
+    curvature : array
+        n2d order polynominal defining image curvature
+        np.array([x^2 coef, x coef, offset])
+    biny : float (usuallly a whole number)
+        difference between subsequnt points spectrum
+    """
     x = photon_events[:,0]
     y = photon_events[:,1]
     corrected_y = y - poly(x, curvature[0], curvature[1], 0.)
@@ -215,19 +302,40 @@ def extract(photon_events, curvature, biny=1.):
     return spectrum
 
 def plot_resolution(ax2, spectrum):
-    """ Plot blue points defining the spectrum on ax2"""
+    """ Plot blue points defining the spectrum on ax2
+
+    Parameters
+    ------------
+    ax2 : matplotlib axes object
+    spectrum: array
+        binned spectrum two column defining
+        pixel, intensity
+
+    Returns
+    -----------
+    spectrum_artist : matplotlib artist
+        Resolution plotting object
+    """
     plt.sca(ax2)
-    spectrum_line = plt.plot(spectrum[:,0], spectrum[:,1], 'b.')
+    spectrum_artist = plt.plot(spectrum[:,0], spectrum[:,1], 'b.')
     plt.xlabel('pixels')
     plt.ylabel('Photons')
+    return spectrum_artist
 
 def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
     """Plot the gaussian fit to the resolution function
 
-    Arguments:
-    ax2 -- axes to plot on
-    xmin/xmax -- range of x values to plot over (same as fitting range)
-    resolution_values -- parameters defining gaussian from fit_resolution
+    Parameters
+    -----------
+    ax2 : matplotlib axes object
+        axes to plot on
+    spectrum: array
+        binned spectrum two column defining
+        pixel, intensity
+    xmin/xmax : float/float
+        range of x values to plot over (the same as fitting range)
+    resolution_values : array
+        parameters defining gaussian from fit_resolution
     """
     plt.sca(ax2)
     if xmin == None:
@@ -242,8 +350,17 @@ def run_test(search_path='../test_images/*.h5'):
     """Run at test of the code.
     This can also be used as a reference for command-line analysis.
 
-    Arguments:
-    search_path -- string to fine images passed to get_all_image_names
+    Parameters
+    -------------
+    search_path : string
+        string to fine images passed to get_all_image_names
+
+    Returns
+    -------------
+    ax1 : matplotlib axis object
+        axes used to plot the image
+    ax2 : matplotlib axis object
+        axes used to plot the spectrum
     """
     try:
         selected_image_name = get_all_image_names(search_path)[0]
