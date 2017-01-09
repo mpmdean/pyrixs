@@ -10,7 +10,7 @@ Installation Instructions
     ::
         conda create --name *<name_of_enviroment>*
     where *<name_of_enviroment>* is what you want to call the environment.
-    
+
     Activate the environment:
     ::
         source activate *<name_of_enviroment>*
@@ -23,7 +23,7 @@ Installation Instructions
     ::
         cd pyrixs-master
         python setup.py install
-        pip install lmfit
+        pip install lmfit ipywidgets traitlets
 
 3. Launch analysis session.
 
