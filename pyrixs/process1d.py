@@ -3,7 +3,7 @@ i.e. photon counts versus energy or pixel
 Everything is stored in an ordered dictionary
 Spectra
  -- spectra -- Pandas dataframe of all spectra
- -- total_sum -- Pandas series representing the sum of all spectra
+ -- spectrum -- Pandas series representing the sum of all spectra
  -- shifts -- number of pixels that
  -- meta -- A string can be used to pass around additional data.
 
@@ -21,15 +21,26 @@ import lmfit
 
 from pyrixs import loaddata
 
-Spectra = OrderedDict({
-'spectra' : pd.DataFrame([]),
-'total_sum' : pd.Series([]),
-'shifts' : pd.Series([]),
-'meta' : ''
-})
+#Spectra = OrderedDict({
+#'spectra' : pd.DataFrame([]),
+#'total_sum' : pd.Series([]),
+#'shifts' : pd.Series([]),
+#'meta' : ''
+#})
 
 def get_all_spectra_names(search_path):
-    """Returns list of file names meeting the folder search term"""
+    """Returns list of file names meeting the folder search term
+
+    Parameters
+    ----------
+    search_path : string
+        wildcard search string e.g. ../folder/*.txt for glob
+
+    Returns
+    ---------
+    spectra names : list
+        all file names matching search_path
+    """
     paths = glob.glob(search_path)
     return [path.split('/')[-1] for path in paths]
 
@@ -38,12 +49,18 @@ def load_spectra(search_path, selected_file_names):
     One pandas series will be created per spectrum and stored as
     pandas dataframe Spectra['spectra']
 
-    Arguments:
-    search_path -- string that defines folder containing files
-    selected_file_names -- list of filenames to load
-    """
-    global Spectra
+    Parameters
+    -----------
+    search_path : string
+        Folder containing files
+    selected_file_names : list
+        filenames to load
 
+    Returns
+    -----------
+    spectra : pandas dataframe
+        Pandas dataframe of all spectra
+    """
     folder = os.path.dirname(search_path)
 
     spectra = []
@@ -53,10 +70,10 @@ def load_spectra(search_path, selected_file_names):
         spectra.append(spectrum)
 
     if spectra != []:
-        Spectra['spectra'] = pd.concat(spectra, axis=1)
+        return pd.concat(spectra, axis=1)
     else:
-        Spectra['spectra'] = pd.DataFrame([])
         print("No spectra loaded")
+
 
 def make_fake_spectrum(x, elastic_energy=50):
     """Generate intensity values for simulated spectrum.
@@ -73,9 +90,16 @@ def make_fake_spectrum(x, elastic_energy=50):
 def make_fake_spectra(elastic_energies=np.arange(40,50)):
     """Return pandas dataframe of simulated spectra"
 
-    Arguments:
-    elastic_energies --  array defining position of peak. It is typical for this
-    to drift in the course of an experiment.
+    Parameters
+    -----------
+    elastic_energies : array
+        array defining position of peak. It is typical for this
+        to drift in the course of an experiment.
+
+    Returns
+    ----------
+    spectra : pandas dataframe
+        Pandas dataframe of all spectra
     """
     x = np.arange(200)
     spectra_list = []
@@ -86,22 +110,35 @@ def make_fake_spectra(elastic_energies=np.arange(40,50)):
 
     return pd.concat(spectra_list, axis=1)
 
-def plot_spectra(ax1, align_min=None, align_max=None):
+def plot_spectra(ax1, spectra, align_min=None, align_max=None):
     """Plot spectra on ax1
 
-    Arguments:
-    ax1 -- axis to plot on
-    align_min -- vertical line defining minimum alignment value
-    align_max -- vertical line defining maximum alignment value
+    Parameters
+    ------------
+    ax1 : matplotlib axis object
+        axis to plot on
+    align_min : float
+        vertical line defining minimum alignment value
+    align_max : float
+        vertical line defining maximum alignment value
+
+    Returns
+    -------
+    artists : list of matplotlib artist
+        from plotting spectra
+    xmin_artist : matplotlib artist
+        from axvline for min
+    xmax_artist : matplotlib artist
+        from axvline for max
     """
     plt.sca(ax1)
     while ax1.lines != []:
         ax1.lines[0].remove()
 
-    num_spectra = Spectra['spectra'].shape[1]
+    num_spectra = spectra.shape[1]
     plot_color = iter(matplotlib.cm.spectral(np.linspace(0,1,num_spectra)))
-    for name, spectrum in Spectra['spectra'].iteritems():
-        spectrum.plot(color=next(plot_color))
+    #for name, spec in spectra.iteritems():
+    artists = [spec.plot(color=next(plot_color)) for _, spec in spectra.iteritems()]
     plt.xlabel('Pixel / Energy')
     plt.ylabel('Photons')
 
@@ -109,38 +146,57 @@ def plot_spectra(ax1, align_min=None, align_max=None):
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), prop={'size':8})
 
     if align_min == None:
-        align_min = Spectra['spectra'].index.min()
+        align_min = spectra.index.min()
     if align_max == None:
-        align_max = Spectra['spectra'].index.max()
-    plt.axvline(x=align_min, color='b')
-    plt.axvline(x=align_max, color='b')
+        align_max = spectra.index.max()
 
-def plot_shifts(ax2):
-    """Plot the shift values onto ax2"""
+    xmin_artist, xmax_artist = [plt.axvline(x=x, color='b') for x in [align_min, align_max]]
+    return artists, xmin_artist, xmax_artist
+
+def plot_shifts(ax2, shifts):
+    """Plot the shift values onto ax2
+
+    Parameters
+    ----------
+    ax2 : matplotlib axis object
+
+    Returns
+    ---------
+    shifts_line : matplotlib artist
+    """
     plt.sca(ax2)
     try:
         shifts_line.remove()
     except:
         pass
-    shifts_line = plt.plot(Spectra['shifts'], 'ko-', label='Pixel offsets')
+    shifts_line = shifts.plot(style='o')
     plt.ylabel('Shift (pixels)')
-    plt.xticks(Spectra['shifts'].index, [name for name in Spectra['spectra'].columns], rotation=30)
+    #plt.xticks(Spectra['shifts'].index, [name for name in Spectra['spectra'].columns], rotation=30)
+    return shifts_line
 
 
 def correlate(ref, spectra, align_min, align_max, background=0.):
     """Determine the shift in pandas index value required to line up spectra with ref
 
-    Arguments:
-    spectra -- pandas dataframe containing spectra
-    align_min, align_max -- define range of data used in cross-correlation
-    background -- subtract off this value before cross-correlation (default 0)
+    Parameters
+    ------------
+    spectra : pandas dataframe
+    align_min : float
+        min range of data used in cross-correlation
+    align_max : float
+        max range of data used in cross-correlation
+    background : float
+        subtract off this value before cross-correlation (default 0)
 
-    Returns:
-    shifts -- list of shifts
+    Returns
+    ---------
+    shifts : pandas series
+        shifts indexed by name
     """
     zero_shift = np.argmax(np.correlate(ref-background, ref-background, mode='Same'))
     xref = np.arange(len(ref))
     shifts = []
+    names = []
     for name, spectrum in spectra.iteritems():
 
         choose_range = np.logical_and(spectrum.index>align_min, spectrum.index<align_max)
@@ -149,162 +205,232 @@ def correlate(ref, spectra, align_min, align_max, background=0.):
         cross_corr = np.correlate(ref-background, spec-background, mode='Same')
         shift = np.argmax(cross_corr) - zero_shift
         shifts.append(shift)
+        names.append(name)
 
-    return shifts
+    return pd.Series(data=shifts, index=names)
 
-def get_shifts(ref_name, align_min, align_max, background=0):
+def get_shifts(spectra, ref_name, align_min, align_max, background=0):
     """Get shifts using cross correlation.
 
-    Arguments
-    ref_name -- name of spectrum for zero energy shift
-    align_min, align_max -- define range of data used in correlation
-    background -- subtract off this value before cross-correlation (default 0)
+    Parameters
+    -----------
+    ref_name : string
+        name of spectrum for zero energy shift
+    align_min : float
+        min range of data used in cross-correlation
+    align_max : float
+        max range of data used in cross-correlation
+    background : float
+        subtract off this value before cross-correlation (default 0)
 
-    Returns:
-    shifts -- list of shifts
+    Returns
+    ----------
+    shifts : pandas series
+        shifts indexed by name
     """
-    ref_spectrum = Spectra['spectra'][ref_name]
+    ref_spectrum = spectra[ref_name]
     choose_range = np.logical_and(ref_spectrum.index>align_min, ref_spectrum.index<align_max)
     ref = ref_spectrum[choose_range].values
 
-    return correlate(ref, Spectra['spectra'], align_min, align_max, background=background)
+    return correlate(ref, spectra, align_min, align_max, background=background)
 
-def get_shifts_w_mean(ref_name, align_min, align_max, background=0.):
-    """Get shifts using cross correlation.
-    The mean of the spectra after an initial alignment i used as a reference
+# def get_shifts_w_mean(spectra, ref_name, align_min, align_max, background=0.):
+#     """Get shifts using cross correlation.
+#     The mean of the spectra after an initial alignment i used as a reference
+#
+#     Parameters
+#     -----------
+#     ref_name : string
+#         name of spectrum for zero energy shift
+#     align_min : float
+#         min range of data used in cross-correlation
+#     align_max : float
+#         max range of data used in cross-correlation
+#     background : float
+#         subtract off this value before cross-correlation (default 0)
+#
+#     Returns
+#     ----------
+#     shifts : pandas series
+#         shifts indexed by name
+#     """
+#     # first alignment
+#     shifts = get_shifts(spectra, ref_name, align_min=align_min, align_max=align_max, background=background)
+#
+#     # do a first pass alignment
+#     first_pass_spectra = []
+#     for name, spec in spectra.interitems():
+#         shifted_intensities = np.interp(spec.index - shifts[name], spec.index, spec.values)
+#         spec[:] = shifted_intensities
+#         first_pass_spectra.append(spec)
+#
+#         ref_spectrum = pd.concat(first_pass_spectra, axis=1).mean(axis=1)
+#
+#         choose_range = np.logical_and(ref_spectrum.index>align_min, ref_spectrum.index<align_max)
+#         ref = ref_spectrum[choose_range].values
+#         return correlate(ref, spectra, align_min, align_max, background=background)
 
-    Arguments
-    ref_name -- name of spectrum for zero energy shift
-    align_min, align_max -- define range of data used in correlation
-    background -- subtract off this value before cross-correlation (default 0)
+def apply_shifts(spectra, shifts):
+    """ Apply shifts values to spectra and return updated spectra
 
-    Returns:
-    shifts -- list of shifts
+    Parameters
+    ----------
+    spectra : pandas dataframe
+        Pandas dataframe of all spectra
+    shifts : pandas series
+        shifts indexed by name
+
+    Returns
+    ----------
+    spectra : pandas dataframe
+        All spectra
     """
-    # first alignment
-    shifts = get_shifts(ref_name, align_min, align_max, background=background)
-
-    # do a first pass alignment
-    first_pass_spectra = []
-    spectra = Spectra['spectra'].copy()
-    for shift, (name, spectrum) in zip(shifts, spectra.items()):
-        shifted_intensities = np.interp(spectrum.index - shift, spectrum.index, spectrum.values)
-        spectrum[:] = shifted_intensities
-        first_pass_spectra.append(spectrum)
-
-        ref_spectrum = pd.concat(first_pass_spectra, axis=1).mean(axis=1)
-
-        choose_range = np.logical_and(ref_spectrum.index>align_min, ref_spectrum.index<align_max)
-        ref = ref_spectrum[choose_range].values
-        return correlate(ref, Spectra['spectra'], align_min, align_max, background=background)
-
-def apply_shifts(shifts):
-    """ Apply shifts values to Spectras['spectra'] and update Spectras['shifts']"""
-    global Spectra
     aligned_spectra = []
-    for shift, (name, spectrum) in zip(shifts, Spectra['spectra'].items()):
-        shifted_intensities = np.interp(spectrum.index - shift, spectrum.index, spectrum.values)
-        spectrum[:] = shifted_intensities
-        aligned_spectra.append(spectrum)
+    for name, spec in spectra.iteritems():
+        shifted_intensities = np.interp(spec.index - shifts[name], spec.index, spec.values)
+        spec[:] = shifted_intensities
+        aligned_spectra.append(spec)
 
-    Spectra['spectra'] = pd.concat(aligned_spectra, axis=1)
-    Spectra['shifts'] = pd.Series(shifts)
+    return pd.concat(aligned_spectra, axis=1)
 
-def sum_spectra():
-    """Add all the spectra together after calibration
-    The result is stored in Spectra['total_sum']
+def sum_spectra(spectra, shifts):
+    """Add all the spectra together after alifnment
 
-    meta data describing shifts is applied here
+    Parameters
+    ----------
+    spectra : pandas dataframe
+        Pandas dataframe of all spectra
+
+    Returns
+    ----------
+    spectrum : pandas series
+        sum of all spectra
+    meta : string
+        description of shifts is applied here
     """
-    global Spectra
-    Spectra['total_sum'] = Spectra['spectra'].sum(axis=1)
-
-    if len(Spectra['shifts']) == 0:
-        Spectra['shifts'] = pd.Series(np.zeros(len(Spectra['spectra'])))
+    spectrum = spectra.sum(axis=1)
 
     meta = '# Shifts applied \n'
-    for name, shift in zip(Spectra['spectra'].keys(), Spectra['shifts']):
-        meta += '# {}\t {} \n'.format(name, shift)
+    for name in spectra.keys():
+        meta += '# {}\t {} \n'.format(name, shifts[name])
     meta += '\n'
 
-    Spectra['meta'] = meta
+    return spectrum, meta
 
-def plot_sum(ax3):
+def plot_sum(ax3, spectrum):
     """Plot the summed spectra on ax3
+
+    Parameters
+    ------------
+    ax3 : matplotlib axis object
+        axis to plot on
+    spectrum : pandas series
+        sum of all spectra
+
+    Returns
+    -------
+    sum_line : matplotlib artist
+        from axvline for min
     """
     plt.sca(ax3)
-    sum_line = Spectra['total_sum'].plot()
+    sum_line = spectrum.plot()
     plt.xlabel('Pixel / Energy')
     plt.ylabel('Photons')
+    return sum_line
 
-def calibrate_spectra(zero_E, energy_per_pixel):
+def calibrate_spectrum(spectrum, zero_E, energy_per_pixel):
     """Convert spectrum x-axis from pixels to energy
 
-    Argument:
-    zero_E -- the pixel corresponding to zero energy loss
-    energy_per_pixel -- number of meV or eV in one pixel
-    """
-    global Spectra
-    """Calibrate all spectra"""
-    Spectra['total_sum'].index = (Spectra['total_sum'].index-zero_E)*energy_per_pixel
+    Parameters
+    ----------
+    spectrum : pandas series
+        sum of all spectra
+    zero_E : float
+        the pixel corresponding to zero energy loss
+    energy_per_pixel : float
+        number of meV or eV in one pixel
 
-def save_spectrum(savefilepath):
+    Returns
+    ---------
+    spectrum : pandas series
+        sum of all spectra with calibrated indices
+    """
+    spectrum.index = (spectrum.index-zero_E)*energy_per_pixel
+    return spectrum
+
+def save_spectrum(savefilepath, spectrum, meta):
     """Save final spectrum
 
-    Argument:
-    savefilepath -- path to save file at
+    Parameters
+    ----------
+    spectrum : pandas series
+        sum of all spectra with calibrated indices
+    meta : string
+        description of shifts applied
+    savefilepath : string
+        path to save file at
     """
     f = open(savefilepath, 'w')
-    f.write(Spectra['meta'])
-    f.write(Spectra['total_sum'].to_string())
+    f.write(meta)
+    f.write(spectrum.to_string())
     f.close()
 
 def run_test(search_path='test_data/*.txt'):
     """Calls all functions from the command line
     in order to perform a dummy analysis on test_data/*.txt
 
-    Plot axes contains:
-    ax1 -- All spectra
-    ax2 -- Shifts applied during lineup
-    ax3 -- Summed spectrum before and after calibrating
-    which are returned to edit the plots
+    Parameters
+    -----------
+    search_path : string
+        search for files following this wildcard
+
+    Returns
+    --------
+    ax1 : matplotlib axis object
+        All spectra
+    ax2 : matplotlib axis object
+        Shifts applied during lineup
+    ax3 : matplotlib axis object
+        Summed spectrum before and after calibrating
+        which are returned to edit the plots
     """
 
     # Create plot windows
-    plt.figure(1)
+    fig1 = plt.figure(1)
     ax1 = plt.subplot(111)
-    plt.figure(2)
+    fig2 = plt.figure(2)
     ax2 = plt.subplot(111)
     plt.figure(3)
-    ax3 = plt.subplot(111)
+    fig3 = ax3 = plt.subplot(111)
 
     # Load spectra
-    load_spectra(search_path, get_all_spectra_names(search_path))
-    if len(Spectra['spectra']) == 0:
+    spectra = load_spectra(search_path, get_all_spectra_names(search_path))
+    if spectra == None:
         print("Making fake spectra")
-        Spectra['spectra'] = make_fake_spectra()
+        spectra = make_fake_spectra()
 
     # Align spectra
     align_min = 10
     align_max = 70
-    plot_spectra(ax1, align_min, align_max)
-    first_spectrum_name = Spectra['spectra'].keys()[0]
-    shifts = get_shifts_w_mean(first_spectrum_name, align_min, align_max, background=0.5)
-    apply_shifts(shifts)
-    plot_spectra(ax1, align_min, align_max)
+    artists = plot_spectra(ax1, spectra, align_min=align_min, align_max=align_max)
+    first_spectrum_name = spectra.keys()[0]
+    shifts = get_shifts(spectra, first_spectrum_name, align_min=align_min, align_max=align_max, background=0.5)
+    #shifts = get_shifts_w_mean(spectra, first_spectrum_name, align_min, align_max, background=0.5)
+    spectra = apply_shifts(spectra, shifts)
+    artists = plot_spectra(ax1, spectra, align_min, align_max)
 
     # Plot the shifts applied
-    plot_shifts(ax2)
+    artists_shifts = plot_shifts(ax2, shifts)
 
     # Sum, calibrate to energy and plot
-    sum_spectra()
+    spectrum, meta = sum_spectra(spectra, shifts)
     zero_energy = 40
     energy_per_pixel = 2
-    calibrate_spectra(zero_energy, energy_per_pixel)
-    plot_sum(ax3)
+    spectrum = calibrate_spectrum(spectrum, zero_energy, energy_per_pixel)
+    artists_sum = plot_sum(ax3, spectrum)
 
     # Save result
-    save_spectrum('out.dat')
+    save_spectrum('out.dat', spectrum, meta)
 
     return ax1, ax2, ax3
 
