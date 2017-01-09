@@ -1,7 +1,9 @@
 from setuptools import setup
+import versioneer
 
 setup(name='pyrixs',
-      version='0.1',
+      version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       description='Python based analysis for RIXS images and spectra',
       url='https://github.com/mpmdean/pyrixs',
       author='Mark P. M. Dean',
