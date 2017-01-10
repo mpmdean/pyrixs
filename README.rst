@@ -1,30 +1,19 @@
-# pyrixs
+pyrixs
+=========================
+
 Python based analysis for RIXS images and spectra compatible with command line and a GUI based on jupyter widgets
 
-Likely only works with modern Python 3 due to dependency of ipywidgets
-
-Uses packages:
-lmfit
-ipywidgets
-traitlets
-
-IPython
-numpy
-scipy
-matplotlib
-
-
-Installation Instructions :computer:
+Installation Instructions
 =========================
+
 
 1. Create a python environment to work in (optional).
 
     Download and install `anaconda <https://www.continuum.io/downloads>`_.
 
     Create a conda environment:
-    ```
+    ::
         conda create --name *<name_of_enviroment>*
-    ```
     where *<name_of_enviroment>* is what you want to call the environment.
 
     Activate the environment:
