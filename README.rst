@@ -14,7 +14,8 @@ Installation Instructions
     Create a conda environment:
     ::
         conda create --name <name_of_enviroment>
-    where *<name_of_enviroment>* is what you want to call the environment.
+    where <name_of_enviroment> is what you want to call the environment.
+
 
     Activate the environment:
     ::
