@@ -158,3 +158,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.gitignore.io/api/osx,python,linux,windows
+
+# Sphinx
+doc/build/*

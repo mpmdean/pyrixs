@@ -14,7 +14,7 @@ scipy
 matplotlib
 
 
-Installation Instructions
+Installation Instructions :computer:
 =========================
 
 1. Create a python environment to work in (optional).
@@ -22,8 +22,9 @@ Installation Instructions
     Download and install `anaconda <https://www.continuum.io/downloads>`_.
 
     Create a conda environment:
-    ::
+    ```
         conda create --name *<name_of_enviroment>*
+    ```
     where *<name_of_enviroment>* is what you want to call the environment.
 
     Activate the environment:
