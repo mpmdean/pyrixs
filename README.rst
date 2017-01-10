@@ -13,12 +13,12 @@ Installation Instructions
 
     Create a conda environment:
     ::
-        conda create --name *<name_of_enviroment>*
+        conda create --name <name_of_enviroment>
     where *<name_of_enviroment>* is what you want to call the environment.
 
     Activate the environment:
     ::
-        source activate *<name_of_enviroment>*
+        source activate <name_of_enviroment>
 
 2. Install package.
 
