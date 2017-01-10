@@ -13,25 +13,38 @@ numpy
 scipy
 matplotlib
 
---------
-Installation guide
 
-1. Creation a python environment to work in (optional)
-Download anaonda 
-https://www.continuum.io/downloads
-conda create --name analysis
-source activate analysis
-pip install lmfit
+Installation Instructions
+=========================
 
-2. Install package
-https://github.com/mpmdean/pyrixs
-Clone or download
-Extract
+
+1. Create a python environment to work in (optional).
+
+Download and install `anaconda <https://www.continuum.io/downloads>`_.
+
+Create a conda environment:
+::
+conda create --name *<name_of_enviroment>*
+where *<name_of_enviroment>* is what you want to call the environment.
+
+Activate the environment:
+::
+source activate *<name_of_enviroment>*
+
+2. Install package.
+
+Download and extract `pyrixs package <https://github.com/mpmdean/pyrixs>`_.
+
+Change directory and install pyrixs and additional lmfit package:
+::
 cd pyrixs-master
 python setup.py install
+pip install lmfit ipywidgets traitlets
 
-3. Open notebook
-jpuyter notebook
-notebooks > Images_GUI
-or
-notebooks > Spectra_GUI
+3. Launch analysis session.
+
+Open jupyer:
+::
+jupyter notebook
+
+Navigate to *notebooks* and click *Images_GUI* or *Spectra_GUI*.
