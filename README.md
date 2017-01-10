@@ -17,34 +17,33 @@ matplotlib
 Installation Instructions
 =========================
 
-
 1. Create a python environment to work in (optional).
 
-Download and install `anaconda <https://www.continuum.io/downloads>`_.
+    Download and install `anaconda <https://www.continuum.io/downloads>`_.
 
-Create a conda environment:
-::
-conda create --name *<name_of_enviroment>*
-where *<name_of_enviroment>* is what you want to call the environment.
+    Create a conda environment:
+    ::
+        conda create --name *<name_of_enviroment>*
+    where *<name_of_enviroment>* is what you want to call the environment.
 
-Activate the environment:
-::
-source activate *<name_of_enviroment>*
+    Activate the environment:
+    ::
+        source activate *<name_of_enviroment>*
 
 2. Install package.
 
-Download and extract `pyrixs package <https://github.com/mpmdean/pyrixs>`_.
+    Download and extract `pyrixs package <https://github.com/mpmdean/pyrixs>`_.
 
-Change directory and install pyrixs and additional lmfit package:
-::
-cd pyrixs-master
-python setup.py install
-pip install lmfit ipywidgets traitlets
+    Change directory and install pyrixs and additional lmfit package:
+    ::
+        cd pyrixs-master
+        python setup.py install
+        pip install lmfit ipywidgets traitlets
 
 3. Launch analysis session.
 
-Open jupyer:
-::
-jupyter notebook
+    Open jupyer:
+    ::
+        jupyter notebook
 
-Navigate to *notebooks* and click *Images_GUI* or *Spectra_GUI*.
+    Navigate to *notebooks* and click *Images_GUI* or *Spectra_GUI*.
