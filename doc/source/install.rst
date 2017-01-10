@@ -1,4 +1,4 @@
-Installation Instructions :computer:
+Installation Instructions
 =========================
 
 
