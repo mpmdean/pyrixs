@@ -1,7 +1,7 @@
 pyrixs
 =========================
 
-Python based analysis for RIXS images and spectra compatible with command line and a GUI based on jupyter widgets
+Python 3 based analysis for RIXS images and spectra compatible with command line and a GUI based on jupyter widgets.
 
 Installation Instructions
 =========================
@@ -14,7 +14,7 @@ Installation Instructions
     Create a conda environment:
     ::
         conda create --name <name_of_enviroment>
-    where <name_of_enviroment> is what you want to call the environment.
+    where <name_of_enviroment> is what you want to call the environment. N.B. python 3 is required, which should be the default, but can be explicitly requested by appending ``python=3`` to the ``conda create`` command above. 
 
 
     Activate the environment:
