@@ -29,7 +29,12 @@ Installation Instructions
     ::
         cd pyrixs-master
         python setup.py install
-        pip install lmfit ipywidgets traitlets
+        pip install lmfit pandas h5py ipywidgets traitlets
+
+    Activate the Javascript widget
+    ::
+        jupyter nbextension enable --py --sys-prefix widgetsnbextension
+
 
 3. Launch analysis session.
 

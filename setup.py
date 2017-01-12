@@ -10,5 +10,5 @@ setup(name='pyrixs',
       author_email='mdean@bnl.gov',
       license='MIT',
       packages=['pyrixs'],
-      install_requires=['lmfit'],
+      install_requires=['lmfit', 'pandas', 'h5py', 'ipywidgets', 'traitlets'],
       zip_safe=False)
