@@ -39,8 +39,8 @@ def get_all_spectra_names(search_path):
 
 def load_spectra(search_path, selected_file_names):
     """Load all spectra
-    One pandas series will be created per spectrum and stored as
-    pandas dataframe Spectra['spectra']
+    One pandas series will be created per spectrum and stored in a
+    pandas dataframe.
 
     Parameters
     -----------
