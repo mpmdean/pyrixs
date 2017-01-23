@@ -58,7 +58,7 @@ def load_spectra(search_path, selected_file_names):
 
     spectra = []
     for name in selected_file_names:
-        data = loaddata.getspectrum(os.path.join(folder, name))
+        data = loaddata.get_spectrum(os.path.join(folder, name))
         spectrum = pd.Series(data[:,2], index=np.arange(len(data[:,2])), name=name)
         spectra.append(spectrum)
 
@@ -138,9 +138,9 @@ def plot_spectra(ax1, spectra, align_min=None, align_max=None):
     plt.legend()
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), prop={'size':8})
 
-    if align_min == None:
+    if align_min is None:
         align_min = spectra.index.min()
-    if align_max == None:
+    if align_max is None:
         align_max = spectra.index.max()
 
     xmin_artist, xmax_artist = [plt.axvline(x=x, color='b') for x in [align_min, align_max]]
@@ -360,16 +360,13 @@ def run_test(search_path='test_data/*.txt'):
     """
 
     # Create plot windows
-    fig1 = plt.figure(1)
-    ax1 = plt.subplot(111)
-    fig2 = plt.figure(2)
-    ax2 = plt.subplot(111)
-    plt.figure(3)
-    fig3 = ax3 = plt.subplot(111)
+    fig1, ax1 = plt.subplots()
+    fig2, ax2 = plt.subplots()
+    fig3, ax3 = plt.subplots()
 
     # Load spectra
     spectra = load_spectra(search_path, get_all_spectra_names(search_path))
-    if spectra == None:
+    if spectra is not None:
         print("Making fake spectra")
         spectra = make_fake_spectra()
 

@@ -7,7 +7,7 @@ Parameters
 selected_image_name : string
     string specifying image right now a filename
 photon_events : array
-    two column x, y photon location coordinates
+    three column x, y, I photon locations and intensities
 curvature : array
     n2d order polynominal defining image curvature
     np.array([x^2 coef, x coef, offset])
@@ -25,6 +25,7 @@ import pandas as pd
 import os, glob
 import matplotlib.pyplot as plt
 from collections import OrderedDict
+from functools import reduce
 
 import lmfit, os, glob
 
@@ -48,7 +49,7 @@ def get_all_image_names(search_path):
     paths = glob.glob(search_path)
     return [path.split('/')[-1] for path in paths]
 
-def load_image(search_path, selected_image_name):
+def load_photon_events(search_path, selected_image_name):
     """Return image based on file location
 
     Parameters
@@ -61,10 +62,10 @@ def load_image(search_path, selected_image_name):
     Returns
     ----------
     photon_events : array
-        two column x, y photon location coordinates
+        three column x, y, I photon locations and intensities
     """
     filename = os.path.join(os.path.dirname(search_path), selected_image_name)
-    photon_events = loaddata.getimage(filename)
+    photon_events = loaddata.get_image(filename)
     return photon_events
 
 def make_fake_image():
@@ -73,28 +74,27 @@ def make_fake_image():
     Returns
     ----------
     photon_events : array
-        two column x, y photon location coordinates
+        three column x, y, I photon locations
     """
     randomy = 2**11*np.random.rand(1000000)
     choose = (np.exp( -(randomy-1000)**2 / 5 ) +.002) >np.random.rand(len(randomy))
     yvalues = randomy[choose]
     xvalues = 2**11 * np.random.rand(len(yvalues))
-    return np.vstack((xvalues, yvalues-xvalues*.02)).transpose()
+    I = np.ones(xvalues.shape)
+    return np.vstack((xvalues, yvalues-xvalues*.02, I)).transpose()
 
-def plot_image(ax1, photon_events, alpha=0.5, s=1):
-    """Plot the image composed of an event list
+def plot_scatter(ax1, photon_events, **kwargs):
+    """Make a scatterplot
 
     Parameters
     ----------
     ax1 : matplotlib axes object
         axes for plotting on
     photon_events : array
-        two column x, y photon location coordinates
-    alpha : float
-        transparency of plotted points (default 0.5)
-    s : float
-        size of points (default 1)
-
+        two column x, y, I photon locations and intensities
+    **kwargs : dictionary
+        passed onto matplotlib.pyplot.scatter. Add pointsize to multiply all
+        point sizes by a fixed factor.
     Returns
     ----------
     image_artist : matplotlib artist object
@@ -102,8 +102,46 @@ def plot_image(ax1, photon_events, alpha=0.5, s=1):
     """
     plt.sca(ax1)
     ax1.set_axis_bgcolor('black')
-    image_artist = plt.scatter(photon_events[:,0], photon_events[:,1], c='white',
-            edgecolors='white', alpha=alpha, s=s)
+
+    defaults = {'c': 'white', 'edgecolors' : 'white', 'alpha' : 0.5,
+                'pointsize' : 1}
+
+    kwargs.update({key:val for key, val in defaults.items() if key not in kwargs})
+
+    pointsize = kwargs.pop('pointsize')
+    image_artist = plt.scatter(photon_events[:,0], photon_events[:,1],
+                s=photon_events[:,2]*pointsize, **kwargs)
+    return image_artist
+
+def plot_imshow(ax1, photon_events, **kwargs):
+    """Make an image of the photon_events
+
+    Parameters
+    ----------
+    ax1 : matplotlib axes object
+        axes for plotting on
+    photon_events : array
+        two column x, y, I photon locations and intensities
+    **kwargs : dictionary
+        passed onto matplotlib.pyplot.imshow.
+    Returns
+    ----------
+    image_artist : matplotlib artist object
+        artist from image scatter plot
+    """
+    plt.sca(ax1)
+
+    image = loaddata.photon_events_to_image(photon_events)
+    defaults = {'interpolation' : 'None', 'cmap' : 'gray',
+         'vmin' : np.percentile(image,1), 'vmax' : np.percentile(image,99)}
+
+    kwargs.update({key:val for key, val in defaults.items() if key not in kwargs})
+
+    image_artist = ax1.imshow(image, **kwargs)
+    plt.gcf().colorbar(image_artist)
+    ax1.axis('tight')
+    ax1.invert_yaxis()
+
     return image_artist
 
 def poly(x, p2, p1, p0):
@@ -204,7 +242,7 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     Parameters
     ------------
     photon_events : array
-        two column x, y photon location coordinates
+        three column x, y, I photon locations and intensities
     binx/biny : float/float (usually whole numbers)
         width of columns/rows binned together prior to computing
         convolution. binx should be increased for noisy data.
@@ -220,10 +258,11 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     """
     x = photon_events[:,0]
     y = photon_events[:,1]
+    I = photon_events[:,2]
     x_edges, x_centers = bin_edges_centers(np.nanmin(x), np.nanmax(x), binx)
     y_edges, y_centers = bin_edges_centers(np.nanmin(x), np.nanmax(y), biny)
 
-    H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges))
+    H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges), weights=I)
 
     ref_column = H[H.shape[0]//2, :]
 
@@ -294,10 +333,11 @@ def extract(photon_events, curvature, biny=1.):
     """
     x = photon_events[:,0]
     y = photon_events[:,1]
+    I = photon_events[:,2]
     corrected_y = y - poly(x, curvature[0], curvature[1], 0.)
     pix_edges, pix_centers = bin_edges_centers(np.nanmin(corrected_y),
                                             np.nanmax(corrected_y), biny)
-    I, _ = np.histogram(corrected_y, bins=pix_edges)
+    I, _ = np.histogram(corrected_y, bins=pix_edges, weights=I)
     spectrum = np.vstack((pix_centers, I)).transpose()
     return spectrum
 
@@ -338,9 +378,9 @@ def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
         parameters defining gaussian from fit_resolution
     """
     plt.sca(ax2)
-    if xmin == None:
+    if xmin is None:
         xmin = np.nanmin(spectrum[:,0])
-    if xmax == None:
+    if xmax is None:
         xmax = np.nanmax(spectrum[:,0])
     x = np.linspace(xmin, xmax, 10000)
     y = gaussian(x, *resolution)
@@ -364,7 +404,7 @@ def run_test(search_path='../test_images/*.h5'):
     """
     try:
         selected_image_name = get_all_image_names(search_path)[0]
-        photon_events = load_image(search_path, selected_image_name)
+        photon_events = load_photon_events(search_path, selected_image_name)
     except (KeyError, IndexError) as e:
         print("No data found: Simulate an image")
         selected_image_name = '<<<SIMULATED>>>'
@@ -372,14 +412,12 @@ def run_test(search_path='../test_images/*.h5'):
     curvature = fit_curvature(photon_events)
     print("Curvature is {} x^2 + {} x + {}".format(*curvature))
 
-    plt.figure()
-    ax1 = plt.subplot(111)
+    fig1, ax1 = plt.subplots()
     plt.title('Image {}'.format(selected_image_name))
-    plt.figure()
-    ax2 = plt.subplot(111)
+    fig2, ax2 = plt.subplots()
     plt.title('Spectrum {}'.format(selected_image_name))
 
-    image_artist = plot_image(ax1, photon_events)
+    image_artist = plot_scatter(ax1, photon_events)
     spectrum = extract(photon_events, curvature)
     plot_curvature(ax1, curvature, photon_events)
     resolution = fit_resolution(spectrum)
