@@ -9,7 +9,7 @@ Installation Instructions
     Create a conda environment:
     ::
         conda create --name <name_of_enviroment>
-    where *<name_of_enviroment>* is what you want to call the environment.
+    where *<name_of_enviroment>* is what you want to call the environment. N.B. python 3 is required, which should be the default, but can be explicitly requested by appending ``python=3`` to the ``conda create`` command above.
 
     Activate the environment:
     ::
@@ -23,7 +23,11 @@ Installation Instructions
     ::
         cd pyrixs-master
         python setup.py install
-        pip install lmfit ipywidgets traitlets
+        pip install lmfit pandas h5py ipywidgets traitlets
+
+    Activate the Javascript widget
+    ::
+        jupyter nbextension enable --py --sys-prefix widgetsnbextension
 
 3. Launch analysis session.
 
