@@ -263,14 +263,18 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     y_edges, y_centers = bin_edges_centers(np.nanmin(x), np.nanmax(y), biny)
 
     H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges), weights=I)
-
+    H -= np.min(H) ### Is this necessary after cleanup?? ###
+    
     ref_column = H[H.shape[0]//2, :]
 
     offsets = np.array([])
+    #plt.figure()
     for column in H:
+        #print(column)
+        #plt.plot([i for i in range(len(column))], column)
         cross_correlation = np.correlate(column, ref_column, mode='same')
         offsets = np.append(offsets, y_centers[np.argmax(cross_correlation)])
-
+    #plt.show()
     return x_centers, offsets - offsets[offsets.shape[0]//2]
 
 def fit_curvature(photon_events, binx=32, biny=1, CONSTANT_OFFSET=500):

@@ -29,7 +29,7 @@ Installation Instructions
     ::
         cd pyrixs-master
         python setup.py install
-        pip install lmfit pandas h5py ipywidgets traitlets
+        pip install lmfit pandas h5py ipywidgets traitlets nexusformat
 
     Activate the Javascript widget
     ::

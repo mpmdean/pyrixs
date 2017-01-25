@@ -6,6 +6,7 @@ data from different sources.
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
+from nexusformat.nexus import nxload
 
 def image_to_photon_events(image):
     """ Convert 2D image into photon_events
@@ -35,11 +36,44 @@ def photon_events_to_image(photon_events):
     image[yind, xind] = I
     return image
 
+def load_nxfile(filename):
+    """Load nxs data from Soleil. Each file may
+    contain more than 1 scan.
+    
+    Parameters
+    -----------
+    nxs file : string
+        Contains multiple 2D images
+
+    Returns
+    -----------
+    image : np.array
+        Sum 2D images from nxs file
+    """
+    fload = nxload(filename)
+
+    for key in fload:
+        if 'scan' in key:
+            lb = key
+                
+    data = fload[lb].scan_data.data_01.nxdata
+        
+    image = 0
+    for i in range(len(data)):
+        if type(image) is int:
+            image = data[i]
+        else:
+            image += data[i]
+
+    return image
+                  
 def get_image(filename):
     """Return list of photon events as X,Y,I columns
-    where I is the numner of photons
+    where I is the number of photons
 
     files with .h5 are assumed to be SLS format
+    
+    files with .nxs are assumed to be Soleil format
     """
     if filename[-3:].lower() == '.h5':
         h5file = h5py.File(filename)
@@ -48,6 +82,9 @@ def get_image(filename):
         return np.hstack((XY, I))
     elif filename[-4:].lower() == '.tif':
         image = plt.imread(filename)
+        return image_to_photon_events(image)
+    elif filename[-4:].lower() == '.nxs':
+        image = load_nxfile(filename)
         return image_to_photon_events(image)
     else:
         print('Unknown file extention {}'.format(filename))
