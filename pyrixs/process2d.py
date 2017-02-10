@@ -206,6 +206,7 @@ def fit_resolution(spectrum, xmin=-np.inf, xmax=np.inf):
     GaussianModel = lmfit.Model(gaussian)
     params = GaussianModel.make_params()
     params['center'].value = x[np.argmax(y)]
+    params['FWHM'].set(min = 0)
     result = GaussianModel.fit(y, x=x, params=params)
 
     if result.success:
@@ -263,7 +264,7 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     y_edges, y_centers = bin_edges_centers(np.nanmin(x), np.nanmax(y), biny)
 
     H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges), weights=I)
-    H -= np.min(H) ### Is this necessary after cleanup?? ###
+    #H -= np.min(H) ### Is this necessary after cleanup?? It looks like it's not needed!###
     
     ref_column = H[H.shape[0]//2, :]
 
@@ -389,6 +390,30 @@ def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
     x = np.linspace(xmin, xmax, 10000)
     y = gaussian(x, *resolution)
     return plt.plot(x, y, 'r-', hold=True)
+
+def clean_image_threshold(photon_events, thHigh):
+    """ Remove cosmic rays and glitches using a fixed threshold count.
+
+    Parameters
+    ------------
+    photon_events : array
+        three column x, y, z with location coordinates (x,y) and intensity (z)
+    thHigh: float
+        Threshold limit. Pixels with counts above thHigh will be replaced by the mean value of the image.
+
+    Returns
+    -----------
+    clean_photon_events : array
+        Cleaned photon_events
+    """
+    
+    clean_photon_events = np.copy(photon_events)
+    meanimage = np.mean(photon_events[photon_events[:,2] < thHigh,2])
+    clean_photon_events[clean_photon_events[:,2] > thHigh,2] = meanimage
+
+    changed_pixels = np.sum(clean_photon_events[:,2] != photon_events[:,2]) / photon_events.shape[0]*1.0
+    
+    return clean_photon_events, changed_pixels
 
 def run_test(search_path='../test_images/*.h5'):
     """Run at test of the code.
