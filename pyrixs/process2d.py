@@ -260,7 +260,7 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     y = photon_events[:,1]
     I = photon_events[:,2]
     x_edges, x_centers = bin_edges_centers(np.nanmin(x), np.nanmax(x), binx)
-    y_edges, y_centers = bin_edges_centers(np.nanmin(x), np.nanmax(y), biny)
+    y_edges, y_centers = bin_edges_centers(np.nanmin(y), np.nanmax(y), biny)
 
     H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges), weights=I)
 
