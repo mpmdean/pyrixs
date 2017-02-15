@@ -36,7 +36,6 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
     'sphinx.ext.autosummary',
     'numpydoc',
     'matplotlib.sphinxext.plot_directive',
