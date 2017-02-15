@@ -1,0 +1,10 @@
+..
+
+    import matplotlib.pyplot as plt
+    import pyrixs.process1d as p1d
+    search_path='../notebooks/test_data/*.txt'
+    spectra = p1d.load_spectra(search_path, p1d.get_all_spectra_names(search_path))
+    print(spectra)
+    fig1, ax1 = plt.subplots()
+    artists = p1d.plot_spectra(ax1, spectra)
+    p1d.plt.show()
