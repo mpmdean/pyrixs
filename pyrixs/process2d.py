@@ -388,7 +388,7 @@ def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
     y = gaussian(x, *resolution)
     return plt.plot(x, y, 'r-', hold=True)
 
-def clean_image_threshold(photon_events, thHigh, mode = 'nan'):
+def clean_image_threshold(photon_events, thHigh):
     """ Remove cosmic rays and glitches using a fixed threshold count.
 
     Parameters
@@ -396,35 +396,26 @@ def clean_image_threshold(photon_events, thHigh, mode = 'nan'):
     photon_events : array
         three column x, y, z with location coordinates (x,y) and intensity (z)
     thHigh: float
-        Threshold limit. Pixels with counts above thHigh will be replaced by the mean value of the image.
-    mode: string
-        Select the values to replace the pixels above thHigh. 
-        mode = 'nan' -> pixels replaced by np.nan, mode = 'mean' -> pixels replaced by image mean.
+        Threshold limit. Pixels with counts above/below +/- thHigh will be removed from image.
 
     Returns
     -----------
     clean_photon_events : array
         Cleaned photon_events
     changed_pixels: float
-        Ratio between of changed and total pixels.
+        1 - ratio between of removed and total pixels.
     """
-    
-    clean_photon_events = np.copy(photon_events)
-    if mode == 'nan':
-        clean_photon_events[clean_photon_events[:,2] > thHigh,2] = np.nan
-    elif mode == 'mean':
-        meanimage = np.mean(photon_events[photon_events[:,2] < thHigh,2])
-        clean_photon_events[clean_photon_events[:,2] > thHigh,2] = meanimage
-    else:
-        print('{} is an invalid mode! no cleaning has been performed!'.format(mode))
-
-    changed_pixels = np.sum(clean_photon_events[:,2] != photon_events[:,2]) / photon_events.shape[0]*1.0
-    
+    bad_indices = np.logical_and(photon_events[:,2] < thHigh, photon_events[:,2] > -1.*thHigh)
+    clean_photon_events = photon_events[bad_indices,:]
+    changed_pixels = 1.0 - clean_photon_events.shape[0] / photon_events.shape[0]*1.0
     return clean_photon_events, changed_pixels
 
-def clean_image_std_matrix(photon_events, sigma, curvature, binx = 1., biny = 1., mode = 'del'):
+
+def clean_image_std(photon_events, sigma, curvature):
     """ Remove cosmic rays and glitches based on the stardard deviation for each isoenergetic row. 
-    Values beyond +-sigma[i]*std are either removed or replaced by the row mean.
+    Values beyond +-sigma[i]*std are removed. Note that it is usefull to have sigma.size >= 3 in
+    decreasing order. This is because in a single iteraction, a big glitch will affect the mean 
+    and std, potentially masking a small one.
 
     Parameters
     ------------
@@ -432,17 +423,10 @@ def clean_image_std_matrix(photon_events, sigma, curvature, binx = 1., biny = 1.
         three column x, y, z with location coordinates (x,y) and intensity (z)
     sigma: list or array
         factor of standard deviation that is used for threshold,
-        i.e. values beyond +-sigma[i]*std are replaced by the row mean. The sigma[i]=0 are ignored.
+        i.e. values beyond +-sigma[i]*std are removed. The sigma[i]<=0 are ignored.
     curvature : array
         n2d order polynominal defining image curvature
         np.array([x^2 coef, x coef, offset])
-    binx : float (usuallly a whole number)
-        difference between subsequent points spectrum along x direction
-    biny : float (usuallly a whole number)
-        difference between subsequnt points spectrum along y direction
-    mode: string
-        Select the values to replace the pixels above thHigh. 
-        mode = 'del' -> pixels are removed, mode = 'mean' -> pixels replaced by image mean.
     
     Returns
     -----------
@@ -451,91 +435,10 @@ def clean_image_std_matrix(photon_events, sigma, curvature, binx = 1., biny = 1.
     changed_pixels: float
         ratio between of changed and total pixels.
     """
-
-    #Remove curvature and convert photon_events into image
-    x = photon_events[:,0]
-    y = photon_events[:,1]
-    I = photon_events[:,2]
-    x_edges, x_centers = bin_edges_centers(np.nanmin(x), np.nanmax(x), binx)
-    corrected_y = y - poly(x, curvature[0], curvature[1], 0.)
-    y_edges, y_centers = bin_edges_centers(np.nanmin(corrected_y), np.nanmax(corrected_y), biny)
-    H, _, _ = np.histogram2d(corrected_y,x, bins=(y_edges, x_edges), weights=I)
     
-    #Clean image
-    
-    #This is needed because we compare np.nan with numbers below, it quiets a RuntimeWarning#
-    #that would be raised otherwise.#
-    np.seterr(invalid = 'ignore')
-    
-    cleanH = np.copy(H)
-
-    for sig in sigma:
-        if sig > 0:
-            mean = np.nanmean(cleanH, axis = 1)
-            mean = np.array([mean for i in range(cleanH.shape[1])]).transpose()
-
-            std = np.nanstd(cleanH, axis = 1)
-            std = np.array([std for i in range(cleanH.shape[1])]).transpose()
-
-            bad_indices = np.logical_or(cleanH < (mean - sig*std), cleanH > (mean + sig*std))
-            
-            if mode == 'mean':
-                cleanH[bad_indices] = mean[bad_indices]
-            elif mode == 'del':
-                cleanH[bad_indices] = np.nan
-            else:
-                print('{} is an invalid mode! no cleaning has been performed!'.format(mode))
-    
-    #Putting this setting back to original#
-    np.seterr(invalid = None)
-    
-    changed_pixels = np.sum(cleanH != H) / H.ravel().shape[0]*1.0
-
-    #Put curvature back. We need to be careful with the y_centers, otherwise the image gets shifted in y.
-    X, Y = np.meshgrid(x_centers, y_centers)
-    x = X.ravel()
-    y = Y.ravel()
-    cleanI = cleanH.ravel()
-    
-    x_edges, x_centers = bin_edges_centers(np.nanmin(x), np.nanmax(x), binx)
-    corrected_y = y + poly(x, curvature[0], curvature[1], 0.)
-    y_edges, y_centers = bin_edges_centers(np.nanmin(corrected_y), np.nanmax(corrected_y), biny)
-    H, _, _ = np.histogram2d(corrected_y,x, bins=(y_edges, x_edges), weights=cleanI)
-    
-    X, Y = np.meshgrid(x_centers, y_centers)
-    
-    clean_photon_events = np.vstack((X.ravel(), Y.ravel(), H.ravel())).transpose()
-    clean_photon_events = clean_photon_events[np.isfinite(clean_photon_events[:,2]),:]
-    
-    #changed_pixels = 1. - clean_photon_events.shape[0]/photon_events.shape[0]
-    
-    return clean_photon_events, changed_pixels
-
-def clean_image_std(photon_events, sigma, curvature, mode = 'del'):
-    """ Remove cosmic rays and glitches based on the stardard deviation for each isoenergetic row. 
-    Values beyond +-sigma[i]*std are either removed or replaced by row mean.
-
-    Parameters
-    ------------
-    photon_events : array
-        three column x, y, z with location coordinates (x,y) and intensity (z)
-    sigma: list or array
-        factor of standard deviation that is used for threshold,
-        i.e. values beyond +-sigma[i]*std are replaced by the row mean. The sigma[i]=0 are ignored.
-    curvature : array
-        n2d order polynominal defining image curvature
-        np.array([x^2 coef, x coef, offset])
-    mode: string
-        Select the values to replace the pixels above thHigh. 
-        mode = 'del' -> pixels are deleted, mode = 'mean' -> pixels replaced by image mean.
-    
-    Returns
-    -----------
-    clean_photon_events : array
-        cleaned photon_events.
-    changed_pixels: float
-        ratio between of changed and total pixels.
-    """
+    #Sigmas <= 0 are ignored.
+    sigma = np.array(sigma)
+    sigma = sigma[sigma > 0]
 
     #Remove curvature and convert photon_events into image
     x = photon_events[:,0]
@@ -549,31 +452,23 @@ def clean_image_std(photon_events, sigma, curvature, mode = 'del'):
     
     cleanI = np.copy(I)    
     for sig in sigma:
-        
+        #Creating index to convert the mean and std binned arrays of y_centers.size into cleanI.size
         index = np.digitize(corrected_y,y_edges)
         
         mean,_,_ = binned_statistic(corrected_y,cleanI,statistic='mean',bins=y_edges)
         std,_,_ = binned_statistic(corrected_y,cleanI,statistic='std',bins=y_edges)
-        
         mean_array = mean[index-1]
         std_array = std[index-1]
 
         bad_indices = np.logical_or(cleanI < (mean_array - sig*std_array), cleanI > (mean_array + sig*std_array))
         
-        if mode == 'mean':
-            cleanI[bad_indices] = mean_array[bad_indices]
-        elif mode == 'del':
-            cleanI = cleanI[np.logical_not(bad_indices)]
-            corrected_y = corrected_y[np.logical_not(bad_indices)]
-            x = x[np.logical_not(bad_indices)]
-            y = y[np.logical_not(bad_indices)]
-        else:
-            print('{} is an invalid mode! no cleaning has been performed!'.format(mode))
-    
+        cleanI = cleanI[np.logical_not(bad_indices)]
+        corrected_y = corrected_y[np.logical_not(bad_indices)]
+        x = x[np.logical_not(bad_indices)]
+        y = y[np.logical_not(bad_indices)]
+
     clean_photon_events = np.vstack((x,y,cleanI)).transpose()
-    clean_photon_events= clean_photon_events[np.isfinite(cleanI),:]
-    
-    changed_pixels = 1. - clean_photon_events.shape[0]/photon_events.shape[0]
+    changed_pixels = 1. - cleanI.size/I.size
     
     return clean_photon_events, changed_pixels
 
