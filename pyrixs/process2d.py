@@ -31,6 +31,8 @@ import lmfit, os, glob
 
 from pyrixs import loaddata
 
+from scipy.stats import binned_statistic
+
 CONSTANT_OFFSET = 500
 
 def get_all_image_names(search_path):
@@ -206,6 +208,7 @@ def fit_resolution(spectrum, xmin=-np.inf, xmax=np.inf):
     GaussianModel = lmfit.Model(gaussian)
     params = GaussianModel.make_params()
     params['center'].value = x[np.argmax(y)]
+    params['FWHM'].set(min = 0)
     result = GaussianModel.fit(y, x=x, params=params)
 
     if result.success:
@@ -219,8 +222,8 @@ def bin_edges_centers(minvalue, maxvalue, binsize):
     Parameters
     -----------
     minvalue/maxvalue : array/array
-        minimn/ maximum
-    binsize : float (usuallly a whole number)
+        minimun/ maximum
+    binsize : float (usually a whole number)
         difference between subsequnt points in edges and centers array
 
     Returns
@@ -263,14 +266,13 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     y_edges, y_centers = bin_edges_centers(np.nanmin(y), np.nanmax(y), biny)
 
     H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges), weights=I)
-
+    
     ref_column = H[H.shape[0]//2, :]
 
     offsets = np.array([])
     for column in H:
         cross_correlation = np.correlate(column, ref_column, mode='same')
         offsets = np.append(offsets, y_centers[np.argmax(cross_correlation)])
-
     return x_centers, offsets - offsets[offsets.shape[0]//2]
 
 def fit_curvature(photon_events, binx=32, biny=1, CONSTANT_OFFSET=500):
@@ -385,6 +387,91 @@ def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
     x = np.linspace(xmin, xmax, 10000)
     y = gaussian(x, *resolution)
     return plt.plot(x, y, 'r-', hold=True)
+
+def clean_image_threshold(photon_events, thHigh):
+    """ Remove cosmic rays and glitches using a fixed threshold count.
+
+    Parameters
+    ------------
+    photon_events : array
+        three column x, y, z with location coordinates (x,y) and intensity (z)
+    thHigh: float
+        Threshold limit. Pixels with counts above/below +/- thHigh will be removed from image.
+
+    Returns
+    -----------
+    clean_photon_events : array
+        Cleaned photon_events
+    changed_pixels: float
+        1 - ratio between of removed and total pixels.
+    """
+    bad_indices = np.logical_and(photon_events[:,2] < thHigh, photon_events[:,2] > -1.*thHigh)
+    clean_photon_events = photon_events[bad_indices,:]
+    changed_pixels = 1.0 - clean_photon_events.shape[0] / photon_events.shape[0]*1.0
+    return clean_photon_events, changed_pixels
+
+
+def clean_image_std(photon_events, sigma, curvature):
+    """ Remove cosmic rays and glitches based on the stardard deviation for each isoenergetic row. 
+    Values beyond +-sigma[i]*std are removed. Note that it is usefull to have sigma.size >= 3 in
+    decreasing order. This is because in a single iteraction, a big glitch will affect the mean 
+    and std, potentially masking a small one.
+
+    Parameters
+    ------------
+    photon_events : array
+        three column x, y, z with location coordinates (x,y) and intensity (z)
+    sigma: list or array
+        factor of standard deviation that is used for threshold,
+        i.e. values beyond +-sigma[i]*std are removed. The sigma[i]<=0 are ignored.
+    curvature : array
+        n2d order polynominal defining image curvature
+        np.array([x^2 coef, x coef, offset])
+    
+    Returns
+    -----------
+    clean_photon_events : array
+        cleaned photon_events.
+    changed_pixels: float
+        ratio between of changed and total pixels.
+    """
+    
+    #Sigmas <= 0 are ignored.
+    sigma = np.array(sigma)
+    sigma = sigma[sigma > 0]
+
+    #Remove curvature and convert photon_events into image
+    x = photon_events[:,0]
+    y = photon_events[:,1]
+    I = photon_events[:,2]
+    
+    ## I'm doing the edges/centers here to preserve array size.
+    corrected_y = y - poly(x, curvature[0], curvature[1], 0.)
+    y_edges = 1.0 * np.arange(np.nanmin(corrected_y)//1.0, np.nanmax(corrected_y)//1.0 + 2)
+    y_centers = (y_edges[:-1] + y_edges[1:])/2
+    
+    cleanI = np.copy(I)    
+    for sig in sigma:
+        #Creating index to convert the mean and std binned arrays of y_centers.size into cleanI.size
+        index = np.digitize(corrected_y,y_edges)
+        
+        mean,_,_ = binned_statistic(corrected_y,cleanI,statistic='mean',bins=y_edges)
+        std,_,_ = binned_statistic(corrected_y,cleanI,statistic='std',bins=y_edges)
+        mean_array = mean[index-1]
+        std_array = std[index-1]
+
+        bad_indices = np.logical_or(cleanI < (mean_array - sig*std_array), cleanI > (mean_array + sig*std_array))
+        
+        cleanI = cleanI[np.logical_not(bad_indices)]
+        corrected_y = corrected_y[np.logical_not(bad_indices)]
+        x = x[np.logical_not(bad_indices)]
+        y = y[np.logical_not(bad_indices)]
+
+    clean_photon_events = np.vstack((x,y,cleanI)).transpose()
+    changed_pixels = 1. - cleanI.size/I.size
+    
+    return clean_photon_events, changed_pixels
+
 
 def run_test(search_path='../test_images/*.h5'):
     """Run at test of the code.
