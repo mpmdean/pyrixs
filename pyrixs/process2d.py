@@ -293,6 +293,7 @@ def fit_curvature(photon_events, binx=32, biny=1, CONSTANT_OFFSET=500):
 
     """
     x_centers, offsets = get_curvature_offsets(photon_events, binx=binx, biny=biny)
+    
     result = fit_poly(x_centers, offsets)
     curvature = np.array([result.best_values['p2'], result.best_values['p1'],
                             CONSTANT_OFFSET])
@@ -472,6 +473,31 @@ def clean_image_std(photon_events, sigma, curvature):
     
     return clean_photon_events, changed_pixels
 
+def gen_dark(photon_events, start_row_index=100, end_row_index=300):
+    """ Generate image for background subtraction without real dark image.
+    Data is taken between row start_row_index and end_row_index the 50%
+    percentile is taken to minimize sensitivity to spikes
+           
+    Parameters
+    ------------
+    photon_events : array
+        three column x, y, z with location coordinates (x,y) and intensity (z)
+    start_row_index: int
+        first row of the background
+    end_row_index : int
+        last row of the background
+    
+    Returns
+    -----------
+    dark_photon_events : array
+        generated dark image
+    """
+    
+    index = np.logical_and(photon_events[:,1] > start_row_index, photon_events[:,1] < end_row_index)
+    
+    dark_photon_events = np.copy(photon_events)
+    dark_photon_events[:,2] = np.percentile(photon_events[index,2], 50)
+    return dark_photon_events
 
 def run_test(search_path='../test_images/*.h5'):
     """Run at test of the code.
