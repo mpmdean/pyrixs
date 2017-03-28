@@ -48,7 +48,7 @@ def load_nxfile(filename):
     Returns
     -----------
     image : np.array
-        Sum 2D images from nxs file
+        Average 2D images from nxs file
     """
     fload = nxload(filename)
 
@@ -61,9 +61,9 @@ def load_nxfile(filename):
     image = 0
     for i in range(len(data)):
         if type(image) is int:
-            image = data[i]
+            image = data[i]/len(data)
         else:
-            image += data[i]
+            image += data[i]/len(data)
 
     return image
                   
@@ -97,4 +97,6 @@ def get_spectrum(filename):
     .txt are compatible with np.loadtxt
     """
     if filename[-4:] == '.txt':
+        return np.loadtxt(filename)
+    if filename[-4:] == '.spec':
         return np.loadtxt(filename)
