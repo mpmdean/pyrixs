@@ -214,6 +214,9 @@ def fit_resolution(spectrum, xmin=-np.inf, xmax=np.inf):
     if result.success:
         resolution = [result.best_values[arg] for arg in ['FWHM', 'center', 'amplitude', 'offset']]
         return resolution
+    else:
+        print('Resolution fit failed! Try changing initial parameters!')
+        return None
 
 def bin_edges_centers(minvalue, maxvalue, binsize):
     """Make bin edges and centers for use in histogram
@@ -319,7 +322,8 @@ def plot_curvature(ax1, curvature, photon_events):
     """
     x = np.arange(np.nanmax(photon_events[:,0]))
     y = poly(x, *curvature)
-    return plt.plot(x, y, 'r-', hold=True)
+    #return plt.plot(x, y, 'r-', hold=True)
+    return plt.plot(x, y, 'r-')
 
 def extract(photon_events, curvature, biny=1.):
     """Apply curvature to photon events to create pixel versus intensity spectrum
@@ -387,7 +391,8 @@ def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
         xmax = np.nanmax(spectrum[:,0])
     x = np.linspace(xmin, xmax, 10000)
     y = gaussian(x, *resolution)
-    return plt.plot(x, y, 'r-', hold=True)
+    #return plt.plot(x, y, 'r-', hold=True)
+    return plt.plot(x, y, 'r-')
 
 def clean_image_threshold(photon_events, thHigh):
     """ Remove cosmic rays and glitches using a fixed threshold count.
