@@ -240,7 +240,7 @@ def bin_edges_centers(minvalue, maxvalue, binsize):
     centers = (edges[:-1] + edges[1:])/2
     return edges, centers
 
-def get_curvature_offsets(photon_events, binx=64, biny=1):
+def get_curvature_offsets(photon_events, binx=64, biny=0.5):
     """ Determine the offests that define the isoenergetic line.
     This is determined as the maximum of the cross correlation function with
     a reference taken from the center of the image.
@@ -249,7 +249,7 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     ------------
     photon_events : array
         three column x, y, I photon locations and intensities
-    binx/biny : float/float (usually whole numbers)
+    binx/biny : float/float
         width of columns/rows binned together prior to computing
         convolution. binx should be increased for noisy data.
 
@@ -269,7 +269,7 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
     y_edges, y_centers = bin_edges_centers(np.nanmin(y), np.nanmax(y), biny)
 
     H, _, _ = np.histogram2d(x,y, bins=(x_edges, y_edges), weights=I)
-    
+
     ref_column = H[H.shape[0]//2, :]
 
     offsets = np.array([])
@@ -278,14 +278,14 @@ def get_curvature_offsets(photon_events, binx=64, biny=1):
         offsets = np.append(offsets, y_centers[np.argmax(cross_correlation)])
     return x_centers, offsets - offsets[offsets.shape[0]//2]
 
-def fit_curvature(photon_events, binx=32, biny=1, CONSTANT_OFFSET=500):
+def fit_curvature(photon_events, binx=32, biny=0.5, CONSTANT_OFFSET=500):
     """Get offsets, fit them and return polynomial that defines the curvature
 
     Parameters
     -------------
     photon_events : array
         two column x, y photon location coordinates
-    binx/biny : float/float (usually whole numbers)
+    binx/biny : float/float
         width of columns/rows binned together prior to computing
         convolution. binx should be increased for noisy data.
     CONSTANT_OFFSET : float
@@ -325,7 +325,7 @@ def plot_curvature(ax1, curvature, photon_events):
     #return plt.plot(x, y, 'r-', hold=True)
     return plt.plot(x, y, 'r-')
 
-def extract(photon_events, curvature, biny=1.):
+def extract(photon_events, curvature, biny=0.5):
     """Apply curvature to photon events to create pixel versus intensity spectrum
 
     Parameters
@@ -335,8 +335,8 @@ def extract(photon_events, curvature, biny=1.):
     curvature : array
         n2d order polynominal defining image curvature
         np.array([x^2 coef, x coef, offset])
-    biny : float (usuallly a whole number)
-        difference between subsequnt points spectrum
+    biny : float
+        difference between subsequent points in the spectrum
     """
     x = photon_events[:,0]
     y = photon_events[:,1]
@@ -418,9 +418,9 @@ def clean_image_threshold(photon_events, thHigh):
 
 
 def clean_image_std(photon_events, sigma, curvature):
-    """ Remove cosmic rays and glitches based on the stardard deviation for each isoenergetic row. 
+    """ Remove cosmic rays and glitches based on the stardard deviation for each isoenergetic row.
     Values beyond +-sigma[i]*std are removed. Note that it is usefull to have sigma.size >= 3 in
-    decreasing order. This is because in a single iteraction, a big glitch will affect the mean 
+    decreasing order. This is because in a single iteraction, a big glitch will affect the mean
     and std, potentially masking a small one.
 
     Parameters
@@ -433,7 +433,7 @@ def clean_image_std(photon_events, sigma, curvature):
     curvature : array
         n2d order polynominal defining image curvature
         np.array([x^2 coef, x coef, offset])
-    
+
     Returns
     -----------
     clean_photon_events : array
@@ -441,7 +441,7 @@ def clean_image_std(photon_events, sigma, curvature):
     changed_pixels: float
         ratio between of changed and total pixels.
     """
-    
+
     #Sigmas <= 0 are ignored.
     sigma = np.array(sigma)
     sigma = sigma[sigma > 0]
@@ -450,24 +450,24 @@ def clean_image_std(photon_events, sigma, curvature):
     x = photon_events[:,0]
     y = photon_events[:,1]
     I = photon_events[:,2]
-    
+
     ## I'm doing the edges/centers here to preserve array size.
     corrected_y = y - poly(x, curvature[0], curvature[1], 0.)
     y_edges = 1.0 * np.arange(np.nanmin(corrected_y)//1.0, np.nanmax(corrected_y)//1.0 + 2)
     y_centers = (y_edges[:-1] + y_edges[1:])/2
-    
-    cleanI = np.copy(I)    
+
+    cleanI = np.copy(I)
     for sig in sigma:
         #Creating index to convert the mean and std binned arrays of y_centers.size into cleanI.size
         index = np.digitize(corrected_y,y_edges)
-        
+
         mean,_,_ = binned_statistic(corrected_y,cleanI,statistic='mean',bins=y_edges)
         std,_,_ = binned_statistic(corrected_y,cleanI,statistic='std',bins=y_edges)
         mean_array = mean[index-1]
         std_array = std[index-1]
 
         bad_indices = np.logical_or(cleanI < (mean_array - sig*std_array), cleanI > (mean_array + sig*std_array))
-        
+
         cleanI = cleanI[np.logical_not(bad_indices)]
         corrected_y = corrected_y[np.logical_not(bad_indices)]
         x = x[np.logical_not(bad_indices)]
@@ -475,7 +475,7 @@ def clean_image_std(photon_events, sigma, curvature):
 
     clean_photon_events = np.vstack((x,y,cleanI)).transpose()
     changed_pixels = 1. - cleanI.size/I.size
-    
+
     return clean_photon_events, changed_pixels
 
 def gen_dark(photon_events, start_row_index=100, end_row_index=300):
@@ -504,7 +504,7 @@ def gen_dark(photon_events, start_row_index=100, end_row_index=300):
     dark_photon_events[:,2] = np.percentile(photon_events[index,2], 50)
     return dark_photon_events
 
-def run_test(search_path='../test_images/*.h5'):
+def run_test(search_path='test_images/*.h5'):
     """Run at test of the code.
     This can also be used as a reference for command-line analysis.
 

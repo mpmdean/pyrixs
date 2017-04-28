@@ -308,18 +308,23 @@ def mean_spectra(spectra, shifts=None):
     meta : string
         description of shifts is applied here
     """
-    spectrum = spectra.mean(axis=1)
+    spec = spectra.mean(axis=1)
+    spec.name = 'spectrum'
+    error = spectra.std(axis=1)/np.sqrt(spectra.shape[1])
+    error.name = 'error'
+    spectrum = pd.concat([spec,error],axis=1)
     
-    meta = '# There are {:d} scans'.format(spectra.shape[1])
+    meta = '# There are {:d} scans\n'.format(spectra.shape[1])
     
     if shifts is None:
-        meta = '# No shifts applied \n'
+        meta += '# No shifts applied \n'
     else:
-        meta = '# Shifts applied \n'
+        meta += '# Shifts applied \n'
         for name in spectra.keys():
             meta += '# {}\t {} \n'.format(name, shifts[name])
-        #meta += '\n'
-
+            
+    meta += '# Energy loss (eV)\tIntensity\tError\n'
+    
     return spectrum, meta
 
 def plot_sum(ax3, spectrum):
