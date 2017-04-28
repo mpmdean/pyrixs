@@ -214,6 +214,9 @@ def fit_resolution(spectrum, xmin=-np.inf, xmax=np.inf):
     if result.success:
         resolution = [result.best_values[arg] for arg in ['FWHM', 'center', 'amplitude', 'offset']]
         return resolution
+    else:
+        print('Resolution fit failed! Try changing initial parameters!')
+        return None
 
 def bin_edges_centers(minvalue, maxvalue, binsize):
     """Make bin edges and centers for use in histogram
@@ -293,6 +296,7 @@ def fit_curvature(photon_events, binx=32, biny=1, CONSTANT_OFFSET=500):
 
     """
     x_centers, offsets = get_curvature_offsets(photon_events, binx=binx, biny=biny)
+    
     result = fit_poly(x_centers, offsets)
     curvature = np.array([result.best_values['p2'], result.best_values['p1'],
                             CONSTANT_OFFSET])
@@ -318,7 +322,8 @@ def plot_curvature(ax1, curvature, photon_events):
     """
     x = np.arange(np.nanmax(photon_events[:,0]))
     y = poly(x, *curvature)
-    return plt.plot(x, y, 'r-', hold=True)
+    #return plt.plot(x, y, 'r-', hold=True)
+    return plt.plot(x, y, 'r-')
 
 def extract(photon_events, curvature, biny=1.):
     """Apply curvature to photon events to create pixel versus intensity spectrum
@@ -386,7 +391,8 @@ def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
         xmax = np.nanmax(spectrum[:,0])
     x = np.linspace(xmin, xmax, 10000)
     y = gaussian(x, *resolution)
-    return plt.plot(x, y, 'r-', hold=True)
+    #return plt.plot(x, y, 'r-', hold=True)
+    return plt.plot(x, y, 'r-')
 
 def clean_image_threshold(photon_events, thHigh):
     """ Remove cosmic rays and glitches using a fixed threshold count.
@@ -472,6 +478,31 @@ def clean_image_std(photon_events, sigma, curvature):
     
     return clean_photon_events, changed_pixels
 
+def gen_dark(photon_events, start_row_index=100, end_row_index=300):
+    """ Generate image for background subtraction without real dark image.
+    Data is taken between row start_row_index and end_row_index the 50%
+    percentile is taken to minimize sensitivity to spikes
+           
+    Parameters
+    ------------
+    photon_events : array
+        three column x, y, z with location coordinates (x,y) and intensity (z)
+    start_row_index: int
+        first row of the background
+    end_row_index : int
+        last row of the background
+    
+    Returns
+    -----------
+    dark_photon_events : array
+        generated dark image
+    """
+    
+    index = np.logical_and(photon_events[:,1] > start_row_index, photon_events[:,1] < end_row_index)
+    
+    dark_photon_events = np.copy(photon_events)
+    dark_photon_events[:,2] = np.percentile(photon_events[index,2], 50)
+    return dark_photon_events
 
 def run_test(search_path='../test_images/*.h5'):
     """Run at test of the code.

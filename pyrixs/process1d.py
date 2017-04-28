@@ -58,9 +58,12 @@ def load_spectra(search_path, selected_file_names):
 
     spectra = []
     for name in selected_file_names:
-        data = loaddata.get_spectrum(os.path.join(folder, name))
-        spectrum = pd.Series(data[:,2], index=np.arange(len(data[:,2])), name=name)
-        spectra.append(spectrum)
+        try:
+            data = loaddata.get_spectrum(os.path.join(folder, name))
+            spectrum = pd.Series(data[:,1], index=np.arange(len(data[:,1])), name=name)
+            spectra.append(spectrum)
+        except FileNotFoundError:
+            print('Could not find file ' + os.path.join(folder, name) + '!')
 
     if spectra != []:
         return pd.concat(spectra, axis=1)
@@ -167,10 +170,8 @@ def plot_shifts(ax2, shifts):
     #plt.xticks(Spectra['shifts'].index, [name for name in Spectra['spectra'].columns], rotation=30)
     return shifts_line
 
-
 def get_shifts(spectra, reference, align_min, align_max, background=0.):
     """Determine the shift required to line up spectra with ref
-
     Parameters
     ------------
     spectra : pandas dataframe
@@ -182,7 +183,6 @@ def get_shifts(spectra, reference, align_min, align_max, background=0.):
         max range of data used in cross-correlation
     background : float
         subtract off this value before cross-correlation (default 0)
-
     Returns
     ---------
     shifts : pandas series
@@ -252,18 +252,22 @@ def apply_shifts(spectra, shifts):
     aligned_spectra = []
     for name, spec in spectra.iteritems():
         shifted_intensities = np.interp(spec.index - shifts[name], spec.index, spec.values)
-        spec[:] = shifted_intensities
-        aligned_spectra.append(spec)
+        new_spec = spec.copy()
+        new_spec[:] = shifted_intensities
+        aligned_spectra.append(new_spec)
 
     return pd.concat(aligned_spectra, axis=1)
 
-def sum_spectra(spectra, shifts):
+def sum_spectra(spectra, shifts=None):
     """Add all the spectra together after alignment
 
     Parameters
     ----------
     spectra : pandas dataframe
         Pandas dataframe of all spectra
+        
+    shifts : pandas series
+        Shifts indexed by name.
 
     Returns
     ----------
@@ -273,11 +277,48 @@ def sum_spectra(spectra, shifts):
         description of shifts is applied here
     """
     spectrum = spectra.sum(axis=1)
+    
+    meta = '# There are {:d} scans'.format(spectra.shape[1])
+    
+    if shifts is None:
+        meta = '# No shifts applied \n'
+    else:
+        meta = '# Shifts applied \n'
+        for name in spectra.keys():
+            meta += '# {}\t {} \n'.format(name, shifts[name])
+        #meta += '\n'
 
-    meta = '# Shifts applied \n'
-    for name in spectra.keys():
-        meta += '# {}\t {} \n'.format(name, shifts[name])
-    meta += '\n'
+    return spectrum, meta
+
+def mean_spectra(spectra, shifts=None):
+    """Add all the spectra together after alignment
+
+    Parameters
+    ----------
+    spectra : pandas dataframe
+        Pandas dataframe of all spectra
+        
+    shifts : pandas series
+        Shifts indexed by name.
+
+    Returns
+    ----------
+    spectrum : pandas series
+        sum of all spectra
+    meta : string
+        description of shifts is applied here
+    """
+    spectrum = spectra.mean(axis=1)
+    
+    meta = '# There are {:d} scans'.format(spectra.shape[1])
+    
+    if shifts is None:
+        meta = '# No shifts applied \n'
+    else:
+        meta = '# Shifts applied \n'
+        for name in spectra.keys():
+            meta += '# {}\t {} \n'.format(name, shifts[name])
+        #meta += '\n'
 
     return spectrum, meta
 
@@ -336,7 +377,7 @@ def save_spectrum(savefilepath, spectrum, meta):
     """
     f = open(savefilepath, 'w')
     f.write(meta)
-    f.write(spectrum.to_string())
+    f.write(spectrum.to_string(header=False))
     f.close()
 
 def run_test(search_path='test_data/*.txt'):

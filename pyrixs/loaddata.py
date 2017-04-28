@@ -48,7 +48,7 @@ def load_nxfile(filename):
     Returns
     -----------
     image : np.array
-        Sum 2D images from nxs file
+        Average 2D images from nxs file
     """
     fload = nxload(filename)
 
@@ -57,13 +57,12 @@ def load_nxfile(filename):
             lb = key
                 
     data = fload[lb].scan_data.data_01.nxdata
+    
+    print('NXS file {:s} contains {:d} image(s).'.format(filename.split('/')[-1],len(data)))
         
-    image = 0
+    image = []
     for i in range(len(data)):
-        if type(image) is int:
-            image = data[i]
-        else:
-            image += data[i]
+          image.append(data[i])
 
     return image
                   
@@ -85,7 +84,7 @@ def get_image(filename):
         return image_to_photon_events(image)
     elif filename[-4:].lower() == '.nxs':
         image = load_nxfile(filename)
-        return image_to_photon_events(image)
+        return [image_to_photon_events(im) for im in image]
     else:
         print('Unknown file extention {}'.format(filename))
 
@@ -97,4 +96,8 @@ def get_spectrum(filename):
     .txt are compatible with np.loadtxt
     """
     if filename[-4:] == '.txt':
+        return np.loadtxt(filename)
+    if filename[-4:] == '.dat':
+        return np.loadtxt(filename)
+    if filename[-4:] == '.spec':
         return np.loadtxt(filename)
