@@ -103,7 +103,9 @@ def plot_scatter(ax1, photon_events, **kwargs):
         artist from image scatter plot
     """
     plt.sca(ax1)
-    ax1.set_axis_bgcolor('black')
+    plt.clf()
+    #ax1.set_axis_bgcolor('black') # matplotlib 2.0 decpreciated
+    ax1.set_facecolor('black')
 
     defaults = {'c': 'white', 'edgecolors' : 'white', 'alpha' : 0.5,
                 'pointsize' : 1}
@@ -132,6 +134,7 @@ def plot_imshow(ax1, photon_events, **kwargs):
         artist from image scatter plot
     """
     plt.sca(ax1)
+    plt.clf()
 
     image = loaddata.photon_events_to_image(photon_events)
     defaults = {'interpolation' : 'None', 'cmap' : 'gray',
@@ -318,7 +321,7 @@ def plot_curvature(ax1, curvature, photon_events):
     """
     x = np.arange(np.nanmax(photon_events[:,0]))
     y = poly(x, *curvature)
-    return plt.plot(x, y, 'r-', hold=True)
+    return plt.plot(x, y, 'r-')
 
 def extract(photon_events, curvature, biny=0.5):
     """Apply curvature to photon events to create pixel versus intensity spectrum
@@ -386,7 +389,7 @@ def plot_resolution_fit(ax2, spectrum, resolution, xmin=None, xmax=None):
         xmax = np.nanmax(spectrum[:,0])
     x = np.linspace(xmin, xmax, 10000)
     y = gaussian(x, *resolution)
-    return plt.plot(x, y, 'r-', hold=True)
+    return plt.plot(x, y, 'r-')
 
 def clean_image_threshold(photon_events, thHigh):
     """ Remove cosmic rays and glitches using a fixed threshold count.
