@@ -35,7 +35,8 @@ def get_all_spectra_names(search_path):
         all file names matching search_path
     """
     paths = glob.glob(search_path)
-    return [path.split('/')[-1] for path in paths]
+    names = [os.path.split(path)[-1] for path in paths]
+    return sorted(names)
 
 def load_spectra(search_path, selected_file_names):
     """Load all spectra
@@ -277,7 +278,7 @@ def sum_spectra(spectra, shifts):
     meta = '# Shifts applied \n'
     for name in spectra.keys():
         meta += '# {}\t {} \n'.format(name, shifts[name])
-    meta += '\n'
+    #meta += '\n'
 
     return spectrum, meta
 

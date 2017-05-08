@@ -96,5 +96,12 @@ def get_spectrum(filename):
 
     .txt are compatible with np.loadtxt
     """
-    if filename[-4:] == '.txt':
+    if filename[-4:].lower() == '.txt':
         return np.loadtxt(filename)
+    elif filename[-3:].lower() == '.h5':
+        h5file = h5py.File(filename)
+        I = h5file['entry']['analysis']['spectrum'].value
+        h5file.close()
+        return np.vstack((np.arange(len(I)), I, I)).transpose()
+    else:
+        raise Exception('wrong file extension')

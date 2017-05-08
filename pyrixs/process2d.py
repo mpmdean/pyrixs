@@ -104,7 +104,6 @@ def plot_scatter(ax1, photon_events, **kwargs):
     """
     plt.sca(ax1)
     plt.clf()
-    #ax1.set_axis_bgcolor('black') # matplotlib 2.0 decpreciated
     ax1.set_facecolor('black')
 
     defaults = {'c': 'white', 'edgecolors' : 'white', 'alpha' : 0.5,
