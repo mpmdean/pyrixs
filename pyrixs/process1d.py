@@ -397,6 +397,38 @@ def run_test(search_path='test_data/*.txt'):
 
     return ax1, ax2, ax3
 
+def fit_elastic(x, y, xmin, xmax, ymin, ymax):
+    """Fit x,y data with gaussian. xmin, xmax, ymin, ymax are used to guess peak location
+
+    Parameters
+    ----------
+    x : numpy array
+    y : numpy array
+    xmin:  numpy array
+    xmax: numpy array
+
+    Returns
+    ---------
+    result : lmfit result object
+        description of the fit
+    """
+    gauss_model = lmfit.models.GaussianModel()
+
+    params = gauss_model.make_params()
+    params['center'].value = (xmin + xmax)/2
+    params['center'].min = xmin
+    params['center'].max = xmax
+
+    params['sigma'].value = (xmax - xmin)/10
+    params['sigma'].min = 0
+    params['sigma'].max = (xmax - xmin)
+
+    params['amplitude'].value = ymax*(xmax - xmin)/20
+    params['amplitude'].min = 0.
+
+    errorbars = np.sqrt(y) + 2
+    return gauss_model.fit(y, x=x, params=params, weights=1/errorbars)
+
 if __name__ == "__main__":
     print('Run a test of the code')
     run_test()
